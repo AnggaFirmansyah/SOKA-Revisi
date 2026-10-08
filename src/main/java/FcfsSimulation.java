@@ -1,3 +1,4 @@
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
 import org.cloudsimplus.builders.tables.CloudletsTableBuilder;
@@ -21,26 +22,25 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.DecimalFormat;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class MinMinSimulation {
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+public class FcfsSimulation {
 
     public static void main(String[] args) {
-
         CloudSim simulation = new CloudSim();
 
+        // 1 Host: 16 PE x 100.000 MIPS (sesuai draft design; 4 VM pasti mendarat di Host 0).
+        // VmAllocationPolicySimple dipasang EKSPLISIT, tidak diserahkan ke default CloudSim.
         List<Host> hostList = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            List<Pe> peList = new ArrayList<>();
-            for (int j = 0; j < 8; j++) peList.add(new PeSimple(100000));
-            Host host = new HostSimple(32000, 1000000, 1000000, peList);
-            hostList.add(host);
-        }
-        Datacenter datacenter = new DatacenterSimple(simulation, hostList);
+        List<Pe> peList = new ArrayList<>();
+        for (int j = 0; j < 16; j++) peList.add(new PeSimple(100000));
+        hostList.add(new HostSimple(32000, 1000000, 1000000, peList));
+        Datacenter datacenter = new DatacenterSimple(simulation, hostList, new VmAllocationPolicySimple());
 
         DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
         List<Vm> vmList = new ArrayList<>();
@@ -74,60 +74,38 @@ public class MinMinSimulation {
             System.out.println("Gagal membaca CSV. Pastikan file GoCJ_1000_task_simulation.csv ada di root folder.");
             return;
         }
-
+        
         double[] vmReadyTimes = new double[vmList.size()];
 
-        List<Cloudlet> unassignedCloudlets = new ArrayList<>(cloudletList);
+        for (Cloudlet cloudlet : cloudletList) {
+            int firstAvailableVmIndex = 0;
+            double earliestReadyTime = Double.MAX_VALUE;
 
-        while (!unassignedCloudlets.isEmpty()) {
-            int winningCloudletIndex = -1;
-            int winningVmIndex = -1;
-            double globalMinCompletionTime = Double.MAX_VALUE;
-
-            for (int c = 0; c < unassignedCloudlets.size(); c++) {
-                Cloudlet cloudlet = unassignedCloudlets.get(c);
-                
-                int bestVmForThisCloudlet = -1;
-                double minCompletionTimeForThisCloudlet = Double.MAX_VALUE;
-
-                for (int v = 0; v < vmList.size(); v++) {
-                    Vm vm = vmList.get(v);
-                    double executionTime = cloudlet.getLength() / vm.getMips();
-                    double completionTime = vmReadyTimes[v] + executionTime;
-
-                    if (completionTime < minCompletionTimeForThisCloudlet) {
-                        minCompletionTimeForThisCloudlet = completionTime;
-                        bestVmForThisCloudlet = v;
-                    }
-                }
-
-                if (minCompletionTimeForThisCloudlet < globalMinCompletionTime) {
-                    globalMinCompletionTime = minCompletionTimeForThisCloudlet;
-                    winningCloudletIndex = c;
-                    winningVmIndex = bestVmForThisCloudlet;
+            for (int i = 0; i < vmList.size(); i++) {
+                if (vmReadyTimes[i] < earliestReadyTime) {
+                    earliestReadyTime = vmReadyTimes[i];
+                    firstAvailableVmIndex = i;
                 }
             }
 
-            Cloudlet winningCloudlet = unassignedCloudlets.get(winningCloudletIndex);
-            Vm winningVm = vmList.get(winningVmIndex);
-            
-            winningCloudlet.setVm(winningVm);
-            vmReadyTimes[winningVmIndex] = globalMinCompletionTime;
-            
-            unassignedCloudlets.remove(winningCloudletIndex);
+            Vm selectedVm = vmList.get(firstAvailableVmIndex);
+            cloudlet.setVm(selectedVm);
+            double executionTime = cloudlet.getLength() / selectedVm.getMips();
+            vmReadyTimes[firstAvailableVmIndex] += executionTime;
         }
 
         broker.submitCloudletList(cloudletList);
-        System.out.println("Memulai Simulasi Min-Min di CloudSim Plus...");
+        System.out.println("Memulai Simulasi FCFS di CloudSim Plus...");
         simulation.start();
 
         List<Cloudlet> finishedList = broker.getCloudletFinishedList();
         new CloudletsTableBuilder(finishedList).build();
-
+        
+//        exportToCsv(finishedList, "Hasil_Simulasi_FCFS.csv");
         DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
         String timestamp = LocalDateTime.now().format(dtf);
         
-        String fileName = "Hasil_Simulasi_MinMin_" + timestamp + ".csv"; 
+        String fileName = "Hasil_Simulasi_FCFS_" + timestamp + ".csv"; 
         exportToCsv(finishedList, fileName);
     }
 

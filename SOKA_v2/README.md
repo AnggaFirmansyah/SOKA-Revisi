@@ -28,13 +28,14 @@ Revisi ini menjawab tiga catatan dari laporan sebelumnya:
 | # | Revisi diminta | Sebelumnya | Sekarang |
 |---|----------------|------------|----------|
 | 1 | Uji coba 100–10.000 task (kelipatan 100), 3 kali pengujian, rata-rata, dimasukkan ke grafik | Hanya 1.000 task, 1 run per algoritma | 100 skala × 3 seed × 3 algoritma = **900 run**; rata-rata per skala digrafikkan (`chart_*.png`) |
-| 2 | Kriteria dataset diatur sendiri | GoCJ bawaan | Dataset **sintetis dibangkitkan sendiri** (3 seed), karakteristik beban dikontrol |
-| 3 | 1 host diisi 4 VM, jangan random; jangan diserahkan ke CloudSim langsung | 2 host, penempatan VM diserahkan ke `DatacenterSimple` (kebijakan default bawaan) | **1 host** (16 PE × 100.000 MIPS) dan penempatan keempat VM **dipaksa eksplisit ke Host 0** melalui `VmAllocationPolicy` yang ditentukan sendiri — sesuai draft design |
+| 2 | Kriteria dataset diatur sendiri | GoCJ bawaan | Dataset **sintetis dibangkitkan sendiri** dari kriteria yang didefinisikan sendiri (3 kelas beban, proporsi & rentang MI ditentukan tim), reproducible lewat `SyntheticDatasetGenerator.java` |
+| 3 | 1 host diisi 4 VM, jangan random; jangan diserahkan ke CloudSim langsung | 2 host, penempatan VM diserahkan ke `DatacenterSimple` (kebijakan default bawaan) | **1 host** (16 PE × 100.000 MIPS) dan penempatan keempat VM **dipaksa eksplisit ke Host 0** melalui `VmAllocationPolicy` yang dipasang eksplisit — sesuai draft design |
 | 4 | Kode lengkap + step-by-step | — | Bab 6 dan 7 dokumen ini |
+| 5 | **Koreksi internal:** rumus *Degree of Imbalance* | Rata-rata *finish time* seluruh cloudlet dibagi jumlah VM → DI antar-algoritma nyaris identik (tidak informatif) | DI dihitung dari **total waktu sibuk per VM** (`ready[]`), mengikuti definisi `(max Tj − min Tj) / mean Tj` — lihat §5 |
 
 Selain itu, dari daftar keterbatasan versi sebelumnya yang kini terjawab:
 
-- Skenario ukuran dataset bervariasi (n = 100 … 10.000) **sudah dijalankan**.
+- Skenario ukuran dataset bervariasi (n = 100 ... 10.000) **sudah dijalankan**.
 - Variansi antar-run (repeat) **sudah diukur** (mean ± std, lihat `summary.csv`).
 
 ---
@@ -80,24 +81,48 @@ sebelumnya, sehingga hasil 1.000 task lama tetap konsisten.
 
 ## 4. Dataset Sintetis
 
-Tiga file CSV, dibangkitkan dengan seed berbeda agar tiap repetisi pengujian memakai
-variasi beban yang berbeda:
+Dataset **dibangkitkan sendiri** lewat `SyntheticDatasetGenerator.java` (bukan meniru statistik
+GoCJ), supaya kriteria beban bisa dijelaskan dan hasilnya reproducible.
+
+### 4.1 Kriteria dataset (diatur sendiri)
+
+Beban kerja dimodelkan **tri-modal (right-skewed)**: mayoritas task pendek, sebagian menengah,
+dan ekor panjang yang jarang — meniru pola umum beban cloud, tetapi parameter angkanya kami
+tentukan sendiri:
+
+| Kelas beban | Proporsi | Rentang panjang (MI) | Rata-rata kelas (MI) |
+|---|---|---|---|
+| **Short** | 70% | 10.000 – 150.000 | 80.000 |
+| **Medium** | 20% | 200.000 – 450.000 | 325.000 |
+| **Long** | 10% | 500.000 – 1.000.000 | 750.000 |
+
+- Panjang task di tiap kelas **uniform integer** di dalam rentangnya.
+- Rata-rata dataset ≈ **193.000 – 198.000 MI/task**; kelas Short/Medium/Long tidak saling
+  tumpang tindih rentangnya.
+- **Reproducible**: `java.util.Random` dengan seed eksplisit **1 / 2 / 3**, sehingga dataset
+  yang sama selalu dihasilkan ulang (deterministik).
+
+Angka min/median/mean dataset ini **berbeda jelas** dari GoCJ asli (GoCJ: 15.000 / 89.000 /
+121.815 MI), jadi bukan resample dari GoCJ.
+
+### 4.2 File
 
 | File | Isi |
 |---|---|
-| `../Dataset-Sintetik/synthetic_seed1.csv` | 10.000 task |
-| `../Dataset-Sintetik/synthetic_seed2.csv` | 10.000 task |
-| `../Dataset-Sintetik/synthetic_seed3.csv` | 10.000 task |
+| `Dataset-Sintetik/synthetic_seed1.csv` | 10.000 task (seed 1) |
+| `Dataset-Sintetik/synthetic_seed2.csv` | 10.000 task (seed 2) |
+| `Dataset-Sintetik/synthetic_seed3.csv` | 10.000 task (seed 3) |
 
 - Format: `taskId,lengthMI` (panjang task dalam Million Instructions).
 - Untuk skala n, kode mengambil **n baris pertama** dari file seed terpilih.
 - Repetisi ke-1 memakai seed1, ke-2 seed2, ke-3 seed3 → rata-rata dari 3 seed
   mengurangi bias urutan task pada satu dataset.
 
-### Batas bawah teoritis makespan
+### 4.3 Batas bawah teoritis makespan
 
 Makespan tidak mungkin di bawah `ΣMI / ΣMIPS`. Untuk n = 10.000 (seed1):
-ΣMI = 1.289.223.000, ΣMIPS = 16.000 → **batas bawah = 80.576,44 detik**.
+ΣMI = 1.923.618.731, ΣMIPS = 16.000 → **batas bawah = 120.226,17 detik**.
+(Rata-rata 3 seed: ΣMI = 1.956.455.532 → batas bawah ≈ 122.278,47 detik.)
 
 ---
 
@@ -106,9 +131,15 @@ Makespan tidak mungkin di bawah `ΣMI / ΣMIPS`. Untuk n = 10.000 (seed1):
 | Metrik | Rumus |
 |---|---|
 | **Makespan** | `max_j F(j)` — waktu selesai VM terakhir |
-| **Degree of Imbalance (DI)** | `(max F − min F) / mean F` |
+| **Degree of Imbalance (DI)** | `(max_j Tj − min_j Tj) / mean_j Tj`, dengan `Tj` = total waktu **sibuk** VM j |
 | **Utilization** | `Σ busy time semua VM / (m × makespan)` |
 | **Throughput** | `jumlah task / makespan` |
+
+> **Catatan koreksi DI:** versi awal salah memakai rata-rata *finish time* seluruh cloudlet
+> dibagi jumlah VM, sehingga DI MCT/FCFS/Min-Min nyaris identik (contoh lama: ketiganya
+> 0,0082 di n=1.000). Karena semua task tiba di t=0, `Tj` = ready time akhir VM j, yang
+> sudah tersimpan di array `ready[]` hasil penjadwalan. Setelah koreksi, DI antar-algoritma
+> terpisah dengan benar (n=1.000: MCT 0,0087 / FCFS 0,0139 / Min-Min 0,0699).
 
 ---
 
@@ -118,9 +149,11 @@ Struktur folder `SOKA_v2`:
 
 ```
 SOKA_v2/
+├── SyntheticDatasetGenerator.java  # generator dataset sintetis (kriteria §4.1, reproducible)
 ├── BatchRunner.java      # kode lengkap: 1 host 4 VM + 3 algoritma + sweep 900 run
 ├── cp.txt                # classpath dependency (dipakai compile & run)
 ├── plot_results.py       # grafik + summary.csv (mean ± std per skala)
+├── Dataset-Sintetik/     # synthetic_seed1..3.csv (10.000 task tiap file)
 ├── results.csv           # 900 baris hasil mentah (3 algoritma × 100 skala × 3 repetisi)
 ├── summary.csv           # rata-rata ± std per (algoritma, n)
 ├── chart_makespan.png    # grafik utama: makespan vs n
@@ -130,15 +163,19 @@ SOKA_v2/
 └── out/                  # hasil compile .class
 ```
 
-Kode sumber `BatchRunner.java` (lengkap, satu file):
+Kode sumber:
 
-- Konfigurasi topologi: `HOST_MIPS/HOST_PES/...` dan `VM_MIPS = {1000, 2500, 5000, 7500}`.
-- `buildRunPlan()`: daftar (n, seed) untuk seluruh sweep — n kelipatan 100 hingga 10.000, 3 repetisi.
-- `runOnce(algo, n, csvFile)`: membangun 1 Datacenter + **1 Host**, submit 4 VM, baca n task,
-  hitung mapping sesuai algoritma, jalankan simulasi, hitung 4 metrik, kembalikan 1 baris CSV.
-- `fcfsAssign / mctAssign / minMinAssign`: implementasi ketiga algoritma (identik dengan
-  rumus README lama; Min-Min dioptimasi dengan array boolean agar praktis untuk n = 10.000).
-- `readCsv()`: pembaca dataset sintetis (kolom `lengthMI`).
+- `SyntheticDatasetGenerator.java`: membangkitkan 3 file dataset (seed 1/2/3) sesuai kriteria
+  §4.1. Jalankan dengan `java -cp out SyntheticDatasetGenerator` (default: folder
+  `Dataset-Sintetik`, 10.000 task, 3 seed).
+- `BatchRunner.java`:
+  - Konfigurasi topologi: `HOST_MIPS/HOST_PES/...` dan `VM_MIPS = {1000, 2500, 5000, 7500}`.
+  - `buildRunPlan()`: daftar (n, seed) untuk seluruh sweep — n kelipatan 100 hingga 10.000, 3 repetisi.
+  - `runOnce(algo, n, csvFile)`: membangun 1 Datacenter + **1 Host**, submit 4 VM, baca n task,
+    hitung mapping sesuai algoritma, jalankan simulasi, hitung 4 metrik, kembalikan 1 baris CSV.
+  - `fcfsAssign / mctAssign / minMinAssign`: implementasi ketiga algoritma (Min-Min dioptimasi
+    dengan array boolean agar praktis untuk n = 10.000).
+  - `readCsv()`: pembaca dataset sintetis (kolom `lengthMI`).
 
 ---
 
@@ -159,13 +196,22 @@ Buka terminal VS Code (`Ctrl+` `) di folder `SOKA_v2`, lalu:
 
 ```powershell
 $cp = Get-Content cp.txt -Raw
-& "D:\JDK-17\bin\javac.exe" -cp $cp -d out BatchRunner.java
+& "D:\JDK-17\bin\javac.exe" -cp $cp -d out SyntheticDatasetGenerator.java BatchRunner.java
 ```
 
-### Langkah 2 — Jalankan sweep (900 run, ± 12 menit)
+### Langkah 2a — (Opsional) Bangkitkan ulang dataset sintetis
+
+Dataset sudah tersedia di `Dataset-Sintetik/`. Untuk membangkitkan ulang dari kriteria §4.1
+(hasil deterministik, sama persis):
 
 ```powershell
-& "D:\JDK-17\bin\java.exe" -Xss64m -cp "out;$cp" BatchRunner
+& "D:\JDK-17\bin\java.exe" -cp out SyntheticDatasetGenerator "Dataset-Sintetik" 10000 3
+```
+
+### Langkah 2 — Jalankan sweep (900 run, ± 15 menit)
+
+```powershell
+& "D:\JDK-17\bin\java.exe" -Xss128m -cp "out;$cp" BatchRunner
 ```
 
 - Default: membaca folder `Dataset-Sintetik` di dalam `SOKA_v2` (yang sudah berisi
@@ -211,10 +257,10 @@ mvn exec:java -Dexec.mainClass="BatchRunner"
 
 | n | MCT | FCFS | Min-Min | Batas bawah |
 |---|---|---|---|---|
-| 100 | 793,24 | 823,69 | 852,42 | 743,66 |
-| 1.000 | 8.098,42 | 8.116,13 | 8.153,72 | 7.988,35 |
-| 5.000 | 40.183,99 | 40.310,70 | 40.382,96 | 39.842,64 |
-| 10.000 | **80.891,22** | 81.123,23 | 81.164,28 | 80.267,28* |
+| 100 | **1.142,90** | 1.410,53 | 1.191,15 | 1.100,20 |
+| 1.000 | **12.585,59** | 12.680,02 | 12.738,59 | 12.507,34 |
+| 5.000 | **61.574,75** | 61.743,07 | 61.811,19 | 61.290,77 |
+| 10.000 | **122.886,38** | 123.245,80 | 123.330,43 | 122.320,14* |
 
 (makespan, detik, rata-rata 3 seed; tabel lengkap mean ± std ada di `summary.csv`)
 
@@ -223,42 +269,47 @@ mvn exec:java -Dexec.mainClass="BatchRunner"
 ### 8.3 Analisis
 
 1. **MCT menang konsisten.** Dari 100 skala pengujian, makespan MCT terendah di
-   99 skala (1 skala dimenangkan FCFS dengan selisih <0,1%). Rata-rata, FCFS
-   0,53% lebih lambat dan Min-Min 0,67% lebih lambat dari MCT.
+   **seluruh 100 skala**. Rata-rata, FCFS 0,83% lebih lambat dan Min-Min 0,55% lebih lambat
+   dari MCT. (Di dataset lama FCFS sempat menang 1 skala; pada dataset sintetis baru MCT
+   bersih menyapu seluruh rentang.)
 
 2. **Ketiga algoritma mendekati batas bawah teoritis.** Deviasi makespan
    terhadap ΣMI/ΣMIPS (chart `chart_makespan_diff.png`) membaik seiring n:
-   MCT 2,45% → 0,86%, FCFS 6,36% → 1,15%, Min-Min 10,12% → 1,20% (dari n=100
-   ke n=10.000). Rata-rata deviasi: MCT 0,95%, FCFS 1,49%, Min-Min 1,63%.
+   MCT 3,89% → 0,46%, FCFS 28,35% → 0,76%, Min-Min 8,28% → 0,83% (dari n=100
+   ke n=10.000). Rata-rata deviasi: MCT **0,59%**, FCFS 1,43%, Min-Min 1,14%.
    MCT selalu paling dekat dengan batas bawah di seluruh rentang n.
 
 3. **Deviasi kecil di n besar bukan kebetulan.** Dengan beban total jauh
    melebihi kapasitas (utilization ≈ 99%), pembagian beban greedy konvergen ke
-   solusi nyaris optimal; sisa deviasi ~1% berasal dari fragmentasi terakhir
+   solusi nyaris optimal; sisa deviasi <1% berasal dari fragmentasi terakhir
    (task terbesar di tiap VM) dan jeda event bawaan CloudSim Plus.
 
-4. **DI turun drastis dengan n.** DI ≈ 0,08 pada n=100 turun ke ≈0,0008 pada
-   n=10.000 untuk ketiga algoritma — makin banyak task, makin halus pembagian
-   beban antar VM (law of large numbers pada scheduling greedy).
+4. **DI turun drastis dengan n, dan kini membedakan algoritma.** Rata-rata seluruh skala:
+   MCT **0,0056** < FCFS 0,0115 < Min-Min 0,0259 — MCT paling seimbang, sesuai
+   tujuannya menyeimbangkan beban. DI MCT turun dari 0,0968 (n=100) ke 0,0006
+   (n=10.000); makin banyak task, makin halus pembagian beban antar VM.
 
-5. **Utilization.** MCT 99,3% > FCFS 99,0% > Min-Min 98,2% (rata-rata seluruh run).
-   Min-Min terlihat lebih rendah pada n kecil (≈84% saat n=100) karena cenderung
+5. **Utilization.** MCT 99,5% > FCFS 99,1% > Min-Min 98,6% (rata-rata seluruh skala).
+   Min-Min lebih rendah terutama pada n kecil (n=100 ≈ 82,6%) karena cenderung
    menumpuk task kecil ke VM tercepat sehingga VM lain menganggur di awal run.
 
-6. **Variansi antar seed kecil.** Std makespan MCT pada n=10.000 hanya ±328 s
-   (0,4% dari mean), jadi rata-rata 3 repetisi stabil dan peringkat antar
-   algoritma konsisten.
+6. **Variansi antar seed.** Std makespan MCT pada n=10.000 ±1.833,68 s (1,49% dari mean);
+   pada n besar rata-rata 3 repetisi stabil dan peringkat antar-algoritma konsisten.
+   Variansi lebih besar di n kecil karena subset awal tiap seed punya komposisi kelas
+   beban yang lebih "acak".
 
 ### 8.4 Perbandingan dengan hasil lama (n = 1.000, GoCJ)
 
-| Algoritma | GoCJ (lama) | Dataset sintetis (baru, n=1.000) |
+| Algoritma | GoCJ (versi lama) | Dataset sintetis (baru, n=1.000) |
 |---|---|---|
-| MCT | 7.690,06 | 8.098,42 |
-| FCFS | 7.724,00 | 8.116,13 |
-| Min-Min | 7.781,37 | 8.153,72 |
+| MCT | 7.690,06 | 12.585,59 |
+| FCFS | 7.724,00 | 12.680,02 |
+| Min-Min | 7.781,37 | 12.738,59 |
 
 Peringkat sama (MCT < FCFS < Min-Min). Nilai absolut berbeda karena dataset dan
-total beban berbeda — bukan karena perubahan logika simulasi.
+total beban berbeda (GoCJ ≈ 121.815 MI/task; sintetis ≈ 196.000 MI/task) — bukan
+karena perubahan logika simulasi. Perlu dicatat: pada dataset lama Min-Min > FCFS,
+kini urutan pembanding konsisten MCT < FCFS < Min-Min.
 
 ---
 

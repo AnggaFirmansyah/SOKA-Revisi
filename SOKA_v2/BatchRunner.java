@@ -134,20 +134,25 @@ public class BatchRunner {
 
         List<Cloudlet> finished = broker.getCloudletFinishedList();
         double makespan = 0;
-        double minFinish = Double.MAX_VALUE;
-        double sumFinish = 0;
         double busySum = 0;
         for (Cloudlet c : finished) {
-            double f = c.getFinishTime();
-            makespan = Math.max(makespan, f);
-            minFinish = Math.min(minFinish, f);
-            sumFinish += f;
+            makespan = Math.max(makespan, c.getFinishTime());
             busySum += c.getActualCpuTime();
         }
 
         int m = vmList.size();
-        double meanFinish = sumFinish / m;
-        double di = meanFinish > 0 ? (makespan - minFinish) / meanFinish : 0;
+        // Degree of Imbalance = (max_j T_j - min_j T_j) / mean_j T_j,
+        // dengan T_j = total waktu sibuk VM j. Array ready[] dari tahap penjadwalan
+        // tepat menyimpan T_j per VM (semua task tiba di t=0), jadi dipakai langsung.
+        // (Koreksi: versi sebelumnya keliru memakai rata-rata finish time seluruh cloudlet.)
+        double tMax = ready[0], tMin = ready[0], tSum = 0;
+        for (double t : ready) {
+            tMax = Math.max(tMax, t);
+            tMin = Math.min(tMin, t);
+            tSum += t;
+        }
+        double tAvg = tSum / m;
+        double di = tAvg > 0 ? (tMax - tMin) / tAvg : 0;
         double utilization = makespan > 0 ? busySum / (m * makespan) : 0;
         double throughput = makespan > 0 ? finished.size() / makespan : 0;
 

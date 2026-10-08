@@ -1,3 +1,4 @@
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicySimple;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
 import org.cloudsimplus.builders.tables.CloudletsTableBuilder;
@@ -33,14 +34,13 @@ public class MctSimulation {
     public static void main(String[] args) {
         CloudSim simulation = new CloudSim();
 
+        // 1 Host: 16 PE x 100.000 MIPS (sesuai draft design; 4 VM pasti mendarat di Host 0).
+        // VmAllocationPolicySimple dipasang EKSPLISIT, tidak diserahkan ke default CloudSim.
         List<Host> hostList = new ArrayList<>();
-        for (int i = 0; i < 2; i++) {
-            List<Pe> peList = new ArrayList<>();
-            for (int j = 0; j < 8; j++) peList.add(new PeSimple(100000));
-            Host host = new HostSimple(32000, 1000000, 1000000, peList);
-            hostList.add(host);
-        }
-        Datacenter datacenter = new DatacenterSimple(simulation, hostList);
+        List<Pe> peList = new ArrayList<>();
+        for (int j = 0; j < 16; j++) peList.add(new PeSimple(100000));
+        hostList.add(new HostSimple(32000, 1000000, 1000000, peList));
+        Datacenter datacenter = new DatacenterSimple(simulation, hostList, new VmAllocationPolicySimple());
         DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
         List<Vm> vmList = new ArrayList<>();
         double[] mipsCapacities = {1000, 2500, 5000, 7500};

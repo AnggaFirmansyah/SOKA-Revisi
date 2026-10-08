@@ -51,7 +51,7 @@ def main(path="results.csv"):
     #    Total MI per (n, rep) dihitung ulang dari dataset asli.
     tot_mi = defaultdict(dict)  # tot_mi[seedfile][n] = total MI
     for rep, seedfile in enumerate(["synthetic_seed1.csv", "synthetic_seed2.csv", "synthetic_seed3.csv"]):
-        with open("../Dataset-Sintetik/" + seedfile, newline="", encoding="utf-8") as f:
+        with open("Dataset-Sintetik/" + seedfile, newline="", encoding="utf-8") as f:
             rd = csv.reader(f)
             next(rd)
             mi = [int(r[1]) for r in rd]
