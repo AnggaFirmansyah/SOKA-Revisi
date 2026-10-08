@@ -3,7 +3,7 @@
 Revisi Tugas MCT (Minggu 4) mata kuliah **SOKA — Strategi Optimasi Komputasi Awan**, Kelompok 2.
 Implementasi menggunakan **CloudSim Plus 7.3.0** dengan Java 17.
 
-Revisi ini menjawab tiga catatan dari laporan sebelumnya:
+Revisi ini menjawab tiga catatan dosen terhadap laporan sebelumnya (poin 1–3 di bawah), ditambah kelengkapan kode beserta langkah menjalankannya dan satu koreksi internal pada rumus *Degree of Imbalance* (lihat §2):
 
 1. **Skala uji coba diperluas**: n = 100 s.d. 10.000 task (kelipatan 100), tiap skala **diulang 3 kali** (dataset sintetis seed 1/2/3), diambil **rata-rata**, lalu dibuat grafik.
 2. **Kriteria dataset diatur sendiri**: dataset sintetis dibangkitkan sendiri (3 seed), bukan hanya GoCJ.
@@ -160,17 +160,19 @@ Struktur folder `SOKA_v2`:
 SOKA_v2/
 ├── SyntheticDatasetGenerator.java  # generator dataset sintetis (kriteria §4.1, reproducible)
 ├── BatchRunner.java      # kode lengkap: 2 host, 4 VM + 3 algoritma + sweep 900 run
-├── cp.txt                # classpath dependency (dipakai compile & run)
-├── plot_results.py       # grafik + summary.csv (mean ± std per skala)
+├── plot_results.py       # 5 grafik + summary.csv (mean ± std per skala)
 ├── Dataset-Sintetik/     # synthetic_seed1..3.csv (10.000 task tiap file)
 ├── results.csv           # 900 baris hasil mentah (3 algoritma × 100 skala × 3 repetisi)
 ├── summary.csv           # rata-rata ± std per (algoritma, n)
-├── chart_makespan.png    # grafik utama: makespan vs n
-├── chart_makespan_diff.png  # zoom selisih antar algoritma (thd MCT)
-├── chart_imbalance.png   # degree of imbalance vs n
-├── chart_utilization.png # utilization vs n
-└── out/                  # hasil compile .class
+├── chart_makespan.png         # makespan vs n (garis hampir menumpuk, selisih antar-algoritma < 1%)
+├── chart_selisih_vs_mct.png   # selisih makespan FCFS & Min-Min terhadap MCT (%)
+├── chart_makespan_diff.png    # deviasi makespan terhadap batas bawah teoritis ΣMI/ΣMIPS (%)
+├── chart_imbalance.png        # degree of imbalance vs n
+└── chart_utilization.png      # utilization vs n
 ```
+
+`cp.txt` (classpath dependensi) dan `out/` (hasil compile) dibuat di komputer masing-masing
+dan **tidak disimpan di repo** (lihat §7 langkah 0–1).
 
 Kode sumber:
 
@@ -192,49 +194,79 @@ Kode sumber:
 
 ### Prasyarat
 
-- **JDK 17** (di meski ini: `D:\JDK-17`). CloudSim Plus 7.3.0 butuh Java 11+, tapi konsisten
-  dengan project lama gunakan 17.
+- **JDK 17** (`java -version` dan `javac -version` harus tersedia). CloudSim Plus 7.3.0 butuh
+  Java 11+, tapi konsisten dengan project lama gunakan 17.
+- **Maven** — hanya untuk mengunduh dependensi CloudSim Plus dan membuat `cp.txt` (langkah 0).
 - **Python 3 + matplotlib** untuk grafik: `pip install matplotlib`.
-- Tidak wajib ada Maven — dependensi CloudSim Plus sudah tersedia di repositori lokal
-  (`~/.m2/repository/org/cloudsimplus/cloudsim-plus/7.3.0/`).
-- **Tidak perlu Eclipse/IDE lain** — cukup VS Code terminal, karena tidak ada GUI.
+- Tidak perlu IDE — cukup terminal, karena tidak ada GUI.
+
+### Langkah 0 — Buat `cp.txt` (sekali saja)
+
+`cp.txt` berisi path jar dependensi di komputer masing-masing, sehingga **tidak disimpan di repo**.
+Jalankan dari **root repo** (folder yang berisi `pom.xml`):
+
+```bash
+mvn dependency:build-classpath "-Dmdep.outputFile=SOKA_v2/cp.txt"
+```
 
 ### Langkah 1 — Compile
 
-Buka terminal VS Code (`Ctrl+` `) di folder `SOKA_v2`, lalu:
+Dari folder `SOKA_v2`.
+
+Linux / macOS / WSL (bash):
+
+```bash
+cd SOKA_v2
+CP=$(cat cp.txt)
+javac -cp "$CP" -d out SyntheticDatasetGenerator.java BatchRunner.java
+```
+
+Windows (PowerShell):
 
 ```powershell
-$cp = Get-Content cp.txt -Raw
-& "D:\JDK-17\bin\javac.exe" -cp $cp -d out SyntheticDatasetGenerator.java BatchRunner.java
+cd SOKA_v2
+$cp = (Get-Content cp.txt -Raw).Trim()
+javac -cp $cp -d out SyntheticDatasetGenerator.java BatchRunner.java
 ```
 
 ### Langkah 2a — (Opsional) Bangkitkan ulang dataset sintetis
 
 Dataset sudah tersedia di `Dataset-Sintetik/`. Untuk membangkitkan ulang dari kriteria §4.1
-(hasil deterministik, sama persis):
+(hasil deterministik, sama persis). Folder tujuan harus sudah ada:
 
-```powershell
-& "D:\JDK-17\bin\java.exe" -cp out SyntheticDatasetGenerator "Dataset-Sintetik" 10000 3
+```bash
+java -cp out SyntheticDatasetGenerator Dataset-Sintetik 10000 3
 ```
 
 ### Langkah 2 — Jalankan sweep (900 run, ± 15 menit)
 
-```powershell
-& "D:\JDK-17\bin\java.exe" -Xss128m -cp "out;$cp" BatchRunner
+Linux / macOS / WSL (bash):
+
+```bash
+java -Xss128m -cp "out:$CP" BatchRunner 2>&1 | grep --line-buffered -E "PROGRES|PERINGATAN|SELESAI|ERROR"
 ```
 
-- Default: membaca folder `Dataset-Sintetik` di dalam `SOKA_v2` (yang sudah berisi
-  `synthetic_seed1..3.csv`) dan menulis `results.csv`.
-- Jika ingin override: `BatchRunner "<folder-dataset>" "<file-output>"`.
+Windows (PowerShell):
+
+```powershell
+java -Xss128m -cp "out;$cp" BatchRunner 2>&1 | Select-String "PROGRES|PERINGATAN|SELESAI|ERROR"
+```
+
+- Filter `grep` / `Select-String` **penting**: tanpa filter, CloudSim mencetak jutaan baris `INFO`
+  sehingga terminal banjir dan sweep jauh lebih lambat.
+- Selama jalan muncul 300 baris `[PROGRES]`. Baris `[PERINGATAN]` berarti ada VM yang tidak
+  mendarat di Host 0 — seharusnya **tidak pernah muncul**.
+- Default: membaca folder `Dataset-Sintetik` di dalam `SOKA_v2` dan menulis `results.csv`.
+  Override: `BatchRunner "<folder-dataset>" "<file-output>"`.
 
 ### Langkah 3 — Buat grafik dan ringkasan
 
-```powershell
-python plot_results.py
+```bash
+python3 plot_results.py
 ```
 
-Output: `chart_makespan.png`, `chart_makespan_diff.png`, `chart_imbalance.png`,
-`chart_utilization.png`, dan `summary.csv`.
+Output: `chart_makespan.png`, `chart_selisih_vs_mct.png`, `chart_makespan_diff.png`,
+`chart_imbalance.png`, `chart_utilization.png`, dan `summary.csv`.
 
 ### Langkah 4 — (Opsional) Maven
 
@@ -256,7 +288,12 @@ mvn exec:java -Dexec.mainClass="BatchRunner"
 
 ![Makespan vs ukuran dataset](chart_makespan.png)
 
-![Selisih makespan terhadap batas bawah](chart_makespan_diff.png)
+Ketiga garis hampir menumpuk karena selisih makespan antar-algoritma kurang dari 1% pada
+sebagian besar skala. Selisihnya lebih jelas pada grafik berikut:
+
+![Selisih makespan terhadap MCT](chart_selisih_vs_mct.png)
+
+![Deviasi makespan terhadap batas bawah teoritis](chart_makespan_diff.png)
 
 ![Degree of imbalance](chart_imbalance.png)
 
@@ -278,7 +315,7 @@ mvn exec:java -Dexec.mainClass="BatchRunner"
 ### 8.3 Analisis
 
 1. **MCT terbaik pada rata-rata 3 seed di seluruh 100 skala.** Rata-rata, FCFS 0,83% lebih
-   lambat dan Min-Min 0,55% lebih lambat dari MCT. Pada run individual (300 run), MCT terendah
+   lambat dan Min-Min 0,55% lebih lambat dari MCT. Selisih FCFS dan Min-Min terhadap MCT ditunjukkan `chart_selisih_vs_mct.png`. Pada run individual (300 run), MCT terendah
    di 296 run; 4 run lainnya dimenangkan FCFS (n=200 rep 3, n=400 rep 2, n=1.300 rep 2) atau
    Min-Min (n=900 rep 2).
 
