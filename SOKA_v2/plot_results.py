@@ -9,18 +9,24 @@ ALGOS = ["MCT", "FCFS", "MINMIN"]
 LABELS = {"MCT": "MCT", "FCFS": "FCFS", "MINMIN": "Min-Min"}
 COLORS = {"MCT": "#1f77b4", "FCFS": "#d62728", "MINMIN": "#2ca02c"}
 
+# Menambahkan batas MIN_N dan MAX_N
+MIN_N = 9000
+MAX_N = 10000
+
 # data[algo][n] -> list of metric values across 3 reps
 def load(path):
     data = {a: defaultdict(list) for a in ALGOS}
     with open(path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             n = int(row["n_tasks"])
-            data[row["algorithm"]][n].append({
-                "makespan": float(row["makespan"]),
-                "di": float(row["degree_of_imbalance"]),
-                "util": float(row["utilization"]),
-                "tput": float(row["throughput"]),
-            })
+
+            if MIN_N <= n <= MAX_N:
+                data[row["algorithm"]][n].append({
+                    "makespan": float(row["makespan"]),
+                    "di": float(row["degree_of_imbalance"]),
+                    "util": float(row["utilization"]),
+                    "tput": float(row["throughput"]),
+                })
     return data
 
 def mean_series(data, algo, key):
@@ -41,7 +47,7 @@ def main(path="results.csv"):
         plt.plot(ns, y, label=LABELS[a], color=COLORS[a], linewidth=1.8)
     plt.xlabel("Jumlah task (n)")
     plt.ylabel("Makespan rata-rata (detik)")
-    plt.title("Makespan vs Ukuran Dataset (rata-rata 3 kali pengujian)")
+    plt.title(f"Makespan vs Ukuran Dataset ({MIN_N} - {MAX_N})")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -64,8 +70,10 @@ def main(path="results.csv"):
     with open(path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             n = int(row["n_tasks"])
-            lb = tot_mi[row["dataset_file"]][n] / sum_mips
-            dev[row["algorithm"]][n].append((float(row["makespan"]) - lb) / lb * 100)
+
+            if MIN_N <= n <= MAX_N:
+                lb = tot_mi[row["dataset_file"]][n] / sum_mips
+                dev[row["algorithm"]][n].append((float(row["makespan"]) - lb) / lb * 100)
 
     plt.figure(figsize=(9, 5.5))
     for a in ALGOS:
@@ -74,7 +82,7 @@ def main(path="results.csv"):
     plt.axhline(0, color="gray", linestyle="--", linewidth=1)
     plt.xlabel("Jumlah task (n)")
     plt.ylabel("Deviasi makespan thd batas bawah (%)")
-    plt.title("Deviasi Makespan terhadap Batas Bawah Teoritis (ΣMI/ΣMIPS)")
+    plt.title(f"Deviasi Makespan thd Batas Bawah Teoritis ({MIN_N} - {MAX_N})")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -87,7 +95,7 @@ def main(path="results.csv"):
         plt.plot(ns, y, label=LABELS[a], color=COLORS[a], linewidth=1.8)
     plt.xlabel("Jumlah task (n)")
     plt.ylabel("Degree of Imbalance (rata-rata)")
-    plt.title("Degree of Imbalance vs Ukuran Dataset")
+    plt.title(f"Degree of Imbalance vs Ukuran Dataset ({MIN_N} - {MAX_N})")
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
@@ -100,7 +108,7 @@ def main(path="results.csv"):
         plt.plot(ns, y, label=LABELS[a], color=COLORS[a], linewidth=1.8)
     plt.xlabel("Jumlah task (n)")
     plt.ylabel("Utilization (rata-rata)")
-    plt.title("Utilisasi VM vs Ukuran Dataset")
+    plt.title(f"Utilisasi VM vs Ukuran Dataset ({MIN_N} - {MAX_N})")
     plt.ylim(0, 1.05)
     plt.legend()
     plt.grid(alpha=0.3)
