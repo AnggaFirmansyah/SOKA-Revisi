@@ -1,4 +1,4 @@
-import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicySimple;
+import org.cloudbus.cloudsim.allocationpolicies.VmAllocationPolicyFirstFit;
 import org.cloudbus.cloudsim.brokers.DatacenterBroker;
 import org.cloudbus.cloudsim.brokers.DatacenterBrokerSimple;
 import org.cloudsimplus.builders.tables.CloudletsTableBuilder;
@@ -34,13 +34,17 @@ public class FcfsSimulation {
     public static void main(String[] args) {
         CloudSim simulation = new CloudSim();
 
-        // 1 Host: 16 PE x 100.000 MIPS (sesuai draft design; 4 VM pasti mendarat di Host 0).
-        // VmAllocationPolicySimple dipasang EKSPLISIT, tidak diserahkan ke default CloudSim.
+        // Topologi sesuai Draft Design (Tabel 3-4): 2 Host identik, masing-masing 8 PE x 100.000 MIPS.
+        // Penempatan VM TIDAK diserahkan ke kebijakan default CloudSim: VmAllocationPolicyFirstFit
+        // dipasang eksplisit -> tiap VM ke host pertama yang muat, sehingga keempat VM (4 PE)
+        // selalu mendarat di Host 0 dan Host 1 menjadi cadangan.
         List<Host> hostList = new ArrayList<>();
-        List<Pe> peList = new ArrayList<>();
-        for (int j = 0; j < 16; j++) peList.add(new PeSimple(100000));
-        hostList.add(new HostSimple(32000, 1000000, 1000000, peList));
-        Datacenter datacenter = new DatacenterSimple(simulation, hostList, new VmAllocationPolicySimple());
+        for (int h = 0; h < 2; h++) {
+            List<Pe> peList = new ArrayList<>();
+            for (int j = 0; j < 8; j++) peList.add(new PeSimple(100000));
+            hostList.add(new HostSimple(32000, 1000000, 1000000, peList));
+        }
+        Datacenter datacenter = new DatacenterSimple(simulation, hostList, new VmAllocationPolicyFirstFit());
 
         DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
         List<Vm> vmList = new ArrayList<>();
@@ -50,6 +54,8 @@ public class FcfsSimulation {
             Vm vm = new VmSimple(mipsCapacities[i], 1);
             vm.setRam(4096).setBw(10000).setSize(10000);
             vm.setCloudletScheduler(new CloudletSchedulerSpaceShared());
+            vm.addOnHostAllocationListener(info ->
+                System.out.printf("[ALOKASI] VM %d -> Host %d%n", info.getVm().getId(), info.getHost().getId()));
             vmList.add(vm);
         }
         broker.submitVmList(vmList);

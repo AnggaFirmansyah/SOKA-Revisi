@@ -67,8 +67,8 @@ Mengikuti spesifikasi Draft Design Project (Tugas Minggu 3), dengan revisi Mingg
 
 | Entitas | Jumlah | Spesifikasi |
 |---|---|---|
-| Datacenter | 1 | `DatacenterSimple`, `VmAllocationPolicy` dipasang **eksplisit** (`VmAllocationPolicySimple`), bukan dibiarkan default |
-| Host | 1 | 16 PE × 100.000 MIPS, RAM 32.000 MB, identik (cukup untuk 4 VM) |
+| Datacenter | 1 | `DatacenterSimple` dengan `VmAllocationPolicyFirstFit` dipasang **eksplisit** (draft §3.1 semula memakai default CloudSim; direvisi sesuai catatan dosen) |
+| Host | 2 | Identik, sesuai draft Tabel 4: 8 PE × 100.000 MIPS, RAM 32.000 MB. Keempat VM ditempatkan ke Host 0; Host 1 cadangan |
 | VM | 4 | Small 1.000 / Medium 2.500 / Large 5.000 / XLarge 7.500 MIPS — 1 PE, RAM 4.096 MB, `SpaceShared` |
 | Cloudlet | 1.000 (single-run) / 100–10.000 (batch sweep, lihat `SOKA_v2/`) | 1 PE per task, `UtilizationModelDynamic(1.0)` |
 
@@ -80,7 +80,7 @@ Menjawab catatan revisi terhadap laporan Minggu 4:
 |---|---|---|
 | 1 | Uji coba 100–10.000 task (kelipatan 100), 3 kali, rata-rata, digrafikkan | `SOKA_v2/BatchRunner.java`: 100 skala × 3 seed × 3 algoritma = 900 run + grafik (lihat `SOKA_v2/`) |
 | 2 | Kriteria dataset diatur sendiri | Dataset sintetis dengan kriteria sendiri (3 kelas beban Short/Medium/Long, proporsi & rentang MI ditentukan tim, **bukan** meniru GoCJ), reproducible lewat `SOKA_v2/SyntheticDatasetGenerator.java` |
-| 3 | Alokasi VM ke Host jangan diserahkan ke CloudSim langsung | **1 Host** (16 PE) + `VmAllocationPolicySimple` dipasang **eksplisit** di `DatacenterSimple`, diterapkan di **seluruh** simulasi (`MctSimulation`, `FcfsSimulation`, `MinMinSimulation`, `BatchRunner`) |
+| 3 | 1 host diisi 4 VM, tidak random; jangan diserahkan ke CloudSim langsung | Topologi **tetap 2 Host × 8 PE** (sesuai draft Tabel 3–4). Penempatan VM kini **eksplisit**: `VmAllocationPolicyFirstFit` dipasang di `DatacenterSimple` pada **seluruh** simulasi (`MctSimulation`, `FcfsSimulation`, `MinMinSimulation`, `BatchRunner`), sehingga keempat VM selalu mendarat di Host 0 (deterministik) dan Host 1 menjadi cadangan. Penempatan dicetak/diperiksa tiap run. Ini merevisi draft §3.1 yang semula memakai kebijakan default |
 | 4 | **(koreksi internal)** rumus Degree of Imbalance | Semula memakai rata-rata *finish time* seluruh cloudlet → DI antar-algoritma nyaris identik. Kini memakai total **busy time per VM** (`ready[]`): `(max Tj − min Tj) / mean Tj` |
 
 Detail lengkap (kriteria dataset, hasil sweep, grafik) ada di [`SOKA_v2/README.md`](SOKA_v2/README.md).
@@ -176,7 +176,7 @@ Selisih 0,7-1,3% konsisten di ketiganya, sejalan dengan jeda minimum antar-event
 - Konfigurasi homogen (4 VM identik) belum dijalankan.
 - Waktu komputasi algoritma belum diukur secara eksplisit.
 - Ujicoba real-world (eksekusi task pada resource nyata) belum dilakukan.
-- Pada single-run `MctSimulation/FcfsSimulation/MinMinSimulation`, penempatan VM→host tidak memengaruhi makespan (4 VM × 1 PE muat di host), sehingga angka GoCJ 1.000 task tetap ~7.69–7.78 ribu detik setelah revisi topologi 1 host.
+- Penempatan VM→host tidak memengaruhi makespan karena kapasitas host jauh melampaui kebutuhan 4 VM dan mapping task→VM dihitung di layer aplikasi, bukan oleh CloudSim.
 
 
 ## **Real World Scenario**

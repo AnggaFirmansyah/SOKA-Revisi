@@ -1,0 +1,10 @@
+# Hasil compile Java
+out/
+*.class
+
+# Maven
+target/
+
+# Python
+__pycache__/
+*.pyc
