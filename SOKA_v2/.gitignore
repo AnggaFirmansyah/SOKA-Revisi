@@ -8,3 +8,5 @@ target/
 # Python
 __pycache__/
 *.pyc
+# Classpath hasil `mvn dependency:build-classpath`
+cp.txt

@@ -19,20 +19,24 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * BatchRunner — uji coba skala dataset untuk 3 algoritma penjadwalan.
  *
  * Sesuai draft design (revisi Minggu 3 -> Minggu 4):
- *   - 1 Datacenter, 1 Host (16 PE x 100.000 MIPS, RAM 32 GB) — cukup untuk 4 VM
+ *   - 1 Datacenter, 2 Host (masing-masing 8 PE x 100.000 MIPS, RAM 32 GB)
  *   - 4 VM heterogen: Small 1.000 / Medium 2.500 / Large 5.000 / XLarge 7.500 MIPS
  *   - Alokasi VM ke host DITENTUKAN EKSPLISIT (bukan diserahkan ke kebijakan
- *     default CloudSim): VmAllocationPolicySimple dipasang eksplisit pada
- *     DatacenterSimple, dan karena hanya ada 1 Host maka keempat VM selalu
- *     mendarat di Host 0.
+ *     default CloudSim): lewat setFindHostForVmFunction pada VmAllocationPolicySimple,
+ *     VM di-map tetap: VM-0 (Small) & VM-3 (XLarge) -> Host-0,
+ *     VM-1 (Medium) & VM-2 (Large) -> Host-1.
  *
  * Uji coba: n = 100..10.000 (kelipatan 100), tiap n diulang 3 kali
  * (seed dataset 1/2/3), hasil rata-rata diekspor ke results.csv.
@@ -40,7 +44,8 @@ import java.util.List;
 public class BatchRunner {
 
     static final double HOST_MIPS = 100_000;
-    static final int HOST_PES = 16;
+    static final int HOST_PES = 8;
+    static final int HOST_COUNT = 2;
     static final long HOST_RAM = 32_000;
     static final long HOST_BW = 1_000_000;
     static final long HOST_STORAGE = 1_000_000;
@@ -55,9 +60,9 @@ public class BatchRunner {
         String outFile = args.length > 1 ? args[1] : "results.csv";
 
         List<String> csvFiles = Arrays.asList(
-                dataDir + "\\synthetic_seed1.csv",
-                dataDir + "\\synthetic_seed2.csv",
-                dataDir + "\\synthetic_seed3.csv");
+                Paths.get(dataDir, "synthetic_seed1.csv").toString(),
+                Paths.get(dataDir, "synthetic_seed2.csv").toString(),
+                Paths.get(dataDir, "synthetic_seed3.csv").toString());
         List<int[]> runPlan = buildRunPlan(csvFiles.size());
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(outFile))) {
@@ -95,13 +100,15 @@ public class BatchRunner {
 
         CloudSim simulation = new CloudSim();
 
-        // ==== 1 Host; alokasi VM DITENTUKAN EKSPLISIT: semua VM dipaksa ke Host 0 ====
+        // ==== 2 Host; alokasi VM DITENTUKAN EKSPLISIT lewat setFindHostForVmFunction ====
+        // VM-0 (Small) & VM-3 (XLarge) -> Host-0 ; VM-1 (Medium) & VM-2 (Large) -> Host-1.
+        // Mapping tidak lagi diserahkan ke kebijakan penempatan default CloudSim.
         List<Host> hostList = new ArrayList<>();
-        List<Pe> peList = new ArrayList<>();
-        for (int j = 0; j < HOST_PES; j++) peList.add(new PeSimple(HOST_MIPS));
-        Host host0 = new HostSimple(HOST_RAM, HOST_BW, HOST_STORAGE, peList);
-        hostList.add(host0);
-        new DatacenterSimple(simulation, hostList, new VmAllocationPolicySimple());
+        for (int h = 0; h < HOST_COUNT; h++) {
+            List<Pe> peList = new ArrayList<>();
+            for (int j = 0; j < HOST_PES; j++) peList.add(new PeSimple(HOST_MIPS));
+            hostList.add(new HostSimple(HOST_RAM, HOST_BW, HOST_STORAGE, peList));
+        }
 
         DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
 
@@ -112,6 +119,18 @@ public class BatchRunner {
             vm.setCloudletScheduler(new CloudletSchedulerSpaceShared());
             vmList.add(vm);
         }
+
+        // Peta VM -> Host yang ditetapkan (per indeks VM, sesuai urutan VM_MIPS).
+        int[] hostOfVm = {0, 1, 1, 0};
+        Map<Vm, Host> placement = new IdentityHashMap<>();
+        for (int i = 0; i < vmList.size(); i++) {
+            placement.put(vmList.get(i), hostList.get(hostOfVm[i]));
+        }
+
+        VmAllocationPolicySimple policy = new VmAllocationPolicySimple();
+        policy.setFindHostForVmFunction((p, vm) -> Optional.ofNullable(placement.get(vm)));
+        new DatacenterSimple(simulation, hostList, policy);
+
         broker.submitVmList(vmList);
 
         List<Cloudlet> cloudletList = new ArrayList<>();

@@ -1,6 +1,7 @@
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Random;
 
@@ -15,11 +16,12 @@ import java.util.Random;
  *
  *     | Kelas  | Proporsi | Rentang panjang (MI) | Panjang rata-rata |
  *     |--------|----------|----------------------|-------------------|
- *     | Short  |   70%    |  10.000 .. 150.000   |      80.000       |
- *     | Medium |   20%    | 200.000 .. 450.000   |     325.000       |
- *     | Long   |   10%    | 500.000 .. 1.000.000 |     750.000       |
+ *     | Short  |   50%    |  10.000 .. 150.000   |      80.000       |
+ *     | Medium |   35%    | 200.000 .. 450.000   |     325.000       |
+ *     | Long   |   15%    | 500.000 .. 1.000.000 |     750.000       |
  *
- *   Total panjang rata-rata per task kira-kira 196.000 MI.
+ *   Panjang rata-rata per task kira-kira 266.250 MI
+ *   (0,50 x 80.000 + 0,35 x 325.000 + 0,15 x 750.000).
  *
  * Dua parameter di atas (proporsi kelas dan rentang MI) adalah "kriteria" yang
  * kita atur sendiri; keduanya sengaja dipisah dari distribusi GoCJ agar dataset
@@ -39,9 +41,9 @@ import java.util.Random;
 public class SyntheticDatasetGenerator {
 
     // ==== KRITERIA DATASET (diatur sendiri) ====
-    static final double SHORT_PROP = 0.70;
-    static final double MEDIUM_PROP = 0.20;
-    // sisa 10% = Long
+    static final double SHORT_PROP = 0.50;
+    static final double MEDIUM_PROP = 0.35;
+    // sisa 15% = Long
 
     static final long SHORT_MIN = 10_000, SHORT_MAX = 150_000;
     static final long MEDIUM_MIN = 200_000, MEDIUM_MAX = 450_000;
@@ -55,6 +57,8 @@ public class SyntheticDatasetGenerator {
         int numTasks = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_TASKS;
         int numSeeds = args.length > 2 ? Integer.parseInt(args[2]) : DEFAULT_SEEDS;
 
+        java.nio.file.Files.createDirectories(Paths.get(outDir));
+
         System.out.printf(Locale.US,
                 "Membangkitkan %d task x %d seed ke folder '%s'%n",
                 numTasks, numSeeds, outDir);
@@ -65,7 +69,7 @@ public class SyntheticDatasetGenerator {
                 (1 - SHORT_PROP - MEDIUM_PROP) * 100, LONG_MIN, LONG_MAX);
 
         for (int seed = 1; seed <= numSeeds; seed++) {
-            String file = outDir + "\\synthetic_seed" + seed + ".csv";
+            String file = Paths.get(outDir, "synthetic_seed" + seed + ".csv").toString();
             generate(file, numTasks, seed);
             System.out.println("[OK] " + file);
         }

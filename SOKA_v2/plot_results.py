@@ -5,9 +5,24 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import os
+import sys
+
 ALGOS = ["MCT", "FCFS", "MINMIN"]
 LABELS = {"MCT": "MCT", "FCFS": "FCFS", "MINMIN": "Min-Min"}
 COLORS = {"MCT": "#1f77b4", "FCFS": "#d62728", "MINMIN": "#2ca02c"}
+
+# Total MIPS semua VM (1.000 + 2.500 + 5.000 + 7.500), dipakai untuk batas bawah makespan.
+VM_MIPS_TOTAL = 1000 + 2500 + 5000 + 7500
+
+SEED_FILES = ["synthetic_seed1.csv", "synthetic_seed2.csv", "synthetic_seed3.csv"]
+
+def find_dataset_dir():
+    """Cari folder Dataset-Sintetik: di folder kerja, atau satu tingkat di atasnya (root repo)."""
+    for cand in ["../Dataset-Sintetik", "Dataset-Sintetik", "SOKA_v2/Dataset-Sintetik"]:
+        if os.path.isdir(cand):
+            return cand
+    raise FileNotFoundError("Folder Dataset-Sintetik tidak ditemukan (dicari di ../, ./, dan SOKA_v2/).")
 
 # data[algo][n] -> list of metric values across 3 reps
 def load(path):
@@ -31,8 +46,9 @@ def std_series(data, algo, key):
     ns = sorted(data[algo].keys())
     return [stats.stdev(r[key] for r in data[algo][n]) if len(data[algo][n]) > 1 else 0.0 for n in ns]
 
-def main(path="results.csv"):
+def main(path="results.csv", dataset_dir=None):
     data = load(path)
+    dataset_dir = dataset_dir or find_dataset_dir()
 
     # 1. Makespan vs jumlah task
     plt.figure(figsize=(9, 5.5))
@@ -50,14 +66,14 @@ def main(path="results.csv"):
     # 2. Deviasi makespan thd batas bawah teoritis (ΣMI/ΣMIPS per dataset, per n)
     #    Total MI per (n, rep) dihitung ulang dari dataset asli.
     tot_mi = defaultdict(dict)  # tot_mi[seedfile][n] = total MI
-    for rep, seedfile in enumerate(["synthetic_seed1.csv", "synthetic_seed2.csv", "synthetic_seed3.csv"]):
-        with open("Dataset-Sintetik/" + seedfile, newline="", encoding="utf-8") as f:
+    for seedfile in SEED_FILES:
+        with open(os.path.join(dataset_dir, seedfile), newline="", encoding="utf-8") as f:
             rd = csv.reader(f)
             next(rd)
             mi = [int(r[1]) for r in rd]
         for n in sorted(data["MCT"].keys()):
             tot_mi[seedfile][n] = sum(mi[:n])
-    sum_mips = 16000.0
+    sum_mips = float(VM_MIPS_TOTAL)
 
     # dev[algo][n] = list of % deviation per rep (3 nilai)
     dev = {a: defaultdict(list) for a in ALGOS}
@@ -125,4 +141,7 @@ def main(path="results.csv"):
     print("Selesai: chart_makespan.png, chart_makespan_diff.png, chart_imbalance.png, chart_utilization.png, summary.csv")
 
 if __name__ == "__main__":
-    main()
+    # Pemakaian: python plot_results.py [results.csv] [folder-dataset]
+    results = sys.argv[1] if len(sys.argv) > 1 else "results.csv"
+    dataset = sys.argv[2] if len(sys.argv) > 2 else None
+    main(results, dataset)
