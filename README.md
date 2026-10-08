@@ -18,12 +18,14 @@ Dua algoritma pembanding, yaitu FCFS dan Min-Min turut diimplementasikan untuk m
 
 - [Algoritma](#algoritma)
 - [Arsitektur Simulasi](#arsitektur-simulasi)
+- [Revisi Minggu 4](#revisi-minggu-4)
 - [Dataset](#dataset)
 - [Cara Menjalankan](#cara-menjalankan)
 - [Hasil Ujicoba](#hasil-ujicoba)
 - [Validasi](#validasi)
 - [Struktur Repo](#struktur-repo)
 - [Keterbatasan](#keterbatasan)
+- [Real World Scenario](#real-world-scenario)
 - [Referensi](#referensi)
 
 ## Algoritma
@@ -87,6 +89,8 @@ Detail lengkap (kriteria dataset, hasil sweep, grafik) ada di [`SOKA_v2/README.m
 
 ## **Dataset**
 
+Dua dataset dipakai: **GoCJ** untuk single-run 1.000 task (bagian ini), dan **dataset sintetis buatan sendiri** untuk sweep n = 100–10.000 (kriteria dan generator di [`SOKA_v2/README.md`](SOKA_v2/README.md) §4).
+
 **GoCJ (Google Cloud Jobs)** — Hussain & Aleem (2018), [Mendeley Data](https://data.mendeley.com/datasets/b7bp6xhrcd/1). Ukuran job dalam Million Instructions (MI), dibangkitkan dari analisis Google cluster trace.
 
 File yang dipakai: `GoCJ_1000_task_simulation.csv` — 1.000 task, hanya kolom `lengthMI` yang dipakai.
@@ -100,7 +104,7 @@ File yang dipakai: `GoCJ_1000_task_simulation.csv` — 1.000 task, hanya kolom `
 
 ## Cara Menjalankan
 
-Prasyarat: Java 17, Maven.
+Prasyarat: Java 17, Maven. Langkah di bawah untuk single-run (GoCJ, 1.000 task); sweep n = 100–10.000 dijelaskan di [`SOKA_v2/README.md`](SOKA_v2/README.md) §7.
 
 ```bash
 mvn compile
@@ -162,12 +166,11 @@ Selisih 0,7-1,3% konsisten di ketiganya, sejalan dengan jeda minimum antar-event
 └── SOKA_v2/                             # REVISI Minggu 4 (uji coba skala)
     ├── SyntheticDatasetGenerator.java   # generator dataset sintetis (kriteria sendiri)
     ├── BatchRunner.java                 # sweep n=100–10.000, 3 seed, 3 algoritma
-    ├── plot_results.py                  # grafik + summary.csv
+    ├── plot_results.py                  # 5 grafik + summary.csv
     ├── Dataset-Sintetik/                # synthetic_seed1..3.csv
     ├── results.csv / summary.csv        # hasil sweep
-    ├── chart_*.png                      # 4 grafik
-    ├── README.md                        # dokumentasi lengkap revisi
-    └── cp.txt
+    ├── chart_*.png                      # 5 grafik
+    └── README.md                        # dokumentasi lengkap revisi (cara menjalankan, hasil, analisis)
 ```
 
 ## **Keterbatasan**
@@ -175,11 +178,13 @@ Selisih 0,7-1,3% konsisten di ketiganya, sejalan dengan jeda minimum antar-event
 - **Total cost (F2)** belum dihitung untuk ketiga algoritma; baru makespan (F1), imbalance (F3), utilization, dan throughput yang terukur lengkap.
 - Konfigurasi homogen (4 VM identik) belum dijalankan.
 - Waktu komputasi algoritma belum diukur secara eksplisit.
-- Ujicoba real-world (eksekusi task pada resource nyata) belum dilakukan.
+- Ujicoba real-world penuh (1.000 task, beberapa putaran) belum selesai; baru uji awal 50 task (lihat [Real World Scenario](#real-world-scenario)).
 - Penempatan VM→host tidak memengaruhi makespan karena kapasitas host jauh melampaui kebutuhan 4 VM dan mapping task→VM dihitung di layer aplikasi, bukan oleh CloudSim.
 
 
 ## **Real World Scenario**
+
+> **Status:** uji awal 50 task sudah dijalankan; run penuh 1.000 task belum (nilai `TBD` di bawah). Skrip `dispatcher.py`, `worker.py`, dan `summarize.py` tidak termasuk di repo ini.
 
 Setelah melakukan simulasi melalui CloudSim, kita dapat melakuakn pengujian secara real world menggunakan Docker. Untuk arsitekturnya sebagai berikut.
 
