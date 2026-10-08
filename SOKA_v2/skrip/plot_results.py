@@ -12,17 +12,23 @@ ALGOS = ["MCT", "FCFS", "MINMIN"]
 LABELS = {"MCT": "MCT", "FCFS": "FCFS", "MINMIN": "Min-Min"}
 COLORS = {"MCT": "#1f77b4", "FCFS": "#d62728", "MINMIN": "#2ca02c"}
 
+# Folder SOKA_v2 = induk dari folder skrip/ ini, supaya path tetap benar
+# walau skrip dijalankan dari folder mana pun.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HASIL_DIR = os.path.join(BASE_DIR, "hasil")
+GRAFIK_DIR = os.path.join(BASE_DIR, "grafik")
+
 # Total MIPS semua VM (1.000 + 2.500 + 5.000 + 7.500), dipakai untuk batas bawah makespan.
 VM_MIPS_TOTAL = 1000 + 2500 + 5000 + 7500
 
 SEED_FILES = ["synthetic_seed1.csv", "synthetic_seed2.csv", "synthetic_seed3.csv"]
 
 def find_dataset_dir():
-    """Cari folder Dataset-Sintetik: di folder kerja, atau satu tingkat di atasnya (root repo)."""
-    for cand in ["../Dataset-Sintetik", "Dataset-Sintetik", "SOKA_v2/Dataset-Sintetik"]:
+    """Cari folder dataset (default: SOKA_v2/dataset)."""
+    for cand in [os.path.join(BASE_DIR, "dataset"), "dataset", os.path.join("..", "dataset")]:
         if os.path.isdir(cand):
             return cand
-    raise FileNotFoundError("Folder Dataset-Sintetik tidak ditemukan (dicari di ../, ./, dan SOKA_v2/).")
+    raise FileNotFoundError("Folder dataset tidak ditemukan (dicari di SOKA_v2/dataset).")
 
 # data[algo][n] -> list of metric values across 3 reps
 def load(path):
@@ -46,9 +52,12 @@ def std_series(data, algo, key):
     ns = sorted(data[algo].keys())
     return [stats.stdev(r[key] for r in data[algo][n]) if len(data[algo][n]) > 1 else 0.0 for n in ns]
 
-def main(path="results.csv", dataset_dir=None):
+def main(path=None, dataset_dir=None):
+    path = path or os.path.join(HASIL_DIR, "results.csv")
     data = load(path)
     dataset_dir = dataset_dir or find_dataset_dir()
+    os.makedirs(GRAFIK_DIR, exist_ok=True)
+    os.makedirs(HASIL_DIR, exist_ok=True)
 
     # 1. Makespan vs jumlah task
     plt.figure(figsize=(9, 5.5))
@@ -61,7 +70,7 @@ def main(path="results.csv", dataset_dir=None):
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig("chart_makespan.png", dpi=150)
+    plt.savefig(os.path.join(GRAFIK_DIR, "chart_makespan.png"), dpi=150)
 
     # 2. Deviasi makespan thd batas bawah teoritis (ΣMI/ΣMIPS per dataset, per n)
     #    Total MI per (n, rep) dihitung ulang dari dataset asli.
@@ -94,7 +103,7 @@ def main(path="results.csv", dataset_dir=None):
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig("chart_makespan_diff.png", dpi=150)
+    plt.savefig(os.path.join(GRAFIK_DIR, "chart_makespan_diff.png"), dpi=150)
 
     # 3. Degree of Imbalance
     plt.figure(figsize=(9, 5.5))
@@ -107,7 +116,7 @@ def main(path="results.csv", dataset_dir=None):
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig("chart_imbalance.png", dpi=150)
+    plt.savefig(os.path.join(GRAFIK_DIR, "chart_imbalance.png"), dpi=150)
 
     # 4. Utilization
     plt.figure(figsize=(9, 5.5))
@@ -121,10 +130,10 @@ def main(path="results.csv", dataset_dir=None):
     plt.legend()
     plt.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig("chart_utilization.png", dpi=150)
+    plt.savefig(os.path.join(GRAFIK_DIR, "chart_utilization.png"), dpi=150)
 
     # 5. Tabel ringkasan mean±std untuk laporan
-    with open("summary.csv", "w", newline="", encoding="utf-8") as f:
+    with open(os.path.join(HASIL_DIR, "summary.csv"), "w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["algorithm", "n_tasks", "makespan_mean", "makespan_std", "di_mean", "util_mean", "throughput_mean"])
         for a in ALGOS:
@@ -138,10 +147,10 @@ def main(path="results.csv", dataset_dir=None):
                     f'{stats.mean(r["util"] for r in rows):.4f}',
                     f'{stats.mean(r["tput"] for r in rows):.6f}',
                 ])
-    print("Selesai: chart_makespan.png, chart_makespan_diff.png, chart_imbalance.png, chart_utilization.png, summary.csv")
+    print("Selesai: grafik/chart_makespan.png, grafik/chart_makespan_diff.png, grafik/chart_imbalance.png, grafik/chart_utilization.png, hasil/summary.csv")
 
 if __name__ == "__main__":
-    # Pemakaian: python plot_results.py [results.csv] [folder-dataset]
-    results = sys.argv[1] if len(sys.argv) > 1 else "results.csv"
+    # Pemakaian: python skrip/plot_results.py [hasil/results.csv] [folder-dataset]
+    results = sys.argv[1] if len(sys.argv) > 1 else None
     dataset = sys.argv[2] if len(sys.argv) > 2 else None
     main(results, dataset)

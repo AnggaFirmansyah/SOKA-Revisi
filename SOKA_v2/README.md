@@ -27,7 +27,7 @@ Revisi ini menjawab tiga catatan dari laporan sebelumnya:
 
 | # | Revisi diminta | Sebelumnya | Sekarang |
 |---|----------------|------------|----------|
-| 1 | Uji coba 100–10.000 task (kelipatan 100), 3 kali pengujian, rata-rata, dimasukkan ke grafik | Hanya 1.000 task, 1 run per algoritma | 100 skala × 3 seed × 3 algoritma = **900 run**; rata-rata per skala digrafikkan (`chart_*.png`) |
+| 1 | Uji coba 100–10.000 task (kelipatan 100), 3 kali pengujian, rata-rata, dimasukkan ke grafik | Hanya 1.000 task, 1 run per algoritma | 100 skala × 3 seed × 3 algoritma = **900 run**; rata-rata per skala digrafikkan (`grafik/chart_*.png`) |
 | 2 | Kriteria dataset diatur sendiri | GoCJ bawaan | Dataset **sintetis dibangkitkan sendiri** dari kriteria yang didefinisikan sendiri (3 kelas beban, proporsi & rentang MI ditentukan tim), reproducible lewat `SyntheticDatasetGenerator.java` |
 | 3 | Alokasi VM ke host dibuat eksplisit, jangan random / jangan diserahkan ke CloudSim langsung | 2 host, penempatan VM diserahkan ke `DatacenterSimple` (kebijakan default bawaan) | **2 host** (masing-masing 8 PE × 100.000 MIPS) dengan pemetaan **eksplisit** via `setFindHostForVmFunction`: VM-0 & VM-3 → Host-0, VM-1 & VM-2 → Host-1 |
 | 4 | Kode lengkap + step-by-step | — | Bab 6 dan 7 dokumen ini |
@@ -36,7 +36,7 @@ Revisi ini menjawab tiga catatan dari laporan sebelumnya:
 Selain itu, dari daftar keterbatasan versi sebelumnya yang kini terjawab:
 
 - Skenario ukuran dataset bervariasi (n = 100 ... 10.000) **sudah dijalankan**.
-- Variansi antar-run (repeat) **sudah diukur** (mean ± std, lihat `summary.csv`).
+- Variansi antar-run (repeat) **sudah diukur** (mean ± std, lihat `hasil/summary.csv`).
 
 ---
 
@@ -121,9 +121,9 @@ Angka min/median/mean dataset ini **berbeda jelas** dari GoCJ asli (GoCJ: 15.000
 
 | File | Isi |
 |---|---|
-| `SOKA_v2/Dataset-Sintetik/synthetic_seed1.csv` | 10.000 task (seed 1) |
-| `SOKA_v2/Dataset-Sintetik/synthetic_seed2.csv` | 10.000 task (seed 2) |
-| `SOKA_v2/Dataset-Sintetik/synthetic_seed3.csv` | 10.000 task (seed 3) |
+| `SOKA_v2/dataset/synthetic_seed1.csv` | 10.000 task (seed 1) |
+| `SOKA_v2/dataset/synthetic_seed2.csv` | 10.000 task (seed 2) |
+| `SOKA_v2/dataset/synthetic_seed3.csv` | 10.000 task (seed 3) |
 
 - Format: `taskId,lengthMI` (panjang task dalam Million Instructions).
 - Untuk skala n, kode mengambil **n baris pertama** dari file seed terpilih.
@@ -148,7 +148,7 @@ Untuk n = 1.000 (seed1): batas bawah ≈ 16.443,07 detik.
 | **Utilization** | `Σ busy time semua VM / (m × makespan)` |
 | **Throughput** | `jumlah task / makespan` |
 
-Kolom `results.csv` (satu baris per run):
+Kolom `hasil/results.csv` (satu baris per run):
 
 ```
 algorithm, n_tasks, rep, dataset_file, makespan, degree_of_imbalance, utilization, throughput, cloudlet_success
@@ -172,19 +172,23 @@ Struktur folder `SOKA_v2`:
 ```
 SOKA_v2/
 ├── README.md                    # dokumen ini
-├── BatchRunner.java             # sweep 100–10.000 × 3 seed × 3 algoritma (900 run)
-├── SyntheticDatasetGenerator.java  # pembangkit dataset sintetis (kriteria §4.1, reproducible)
-├── plot_results.py              # grafik + summary.csv (mean ± std per skala)
-├── validasi_python.py           # replika Python MCT/FCFS/Min-Min untuk memeriksa hasil Java
-├── Dataset-Sintetik/            # synthetic_seed1..3.csv (10.000 task tiap file)
 ├── .gitignore
+├── kode/                        # kode Java
+│   ├── BatchRunner.java             # sweep 100–10.000 × 3 seed × 3 algoritma (900 run)
+│   └── SyntheticDatasetGenerator.java  # pembangkit dataset sintetis (kriteria §4.1, reproducible)
+├── skrip/                       # skrip Python
+│   ├── plot_results.py              # grafik + summary.csv (mean ± std per skala)
+│   └── validasi_python.py           # replika Python MCT/FCFS/Min-Min untuk memeriksa hasil Java
+├── dataset/                     # synthetic_seed1..3.csv (10.000 task tiap file)
+├── hasil/                       # keluaran numerik
+│   ├── results.csv                  # 900 baris hasil mentah
+│   └── summary.csv                  # rata-rata ± std per (algoritma, n)
+├── grafik/                      # keluaran grafik
+│   └── chart_*.png
 │
-│   (dibuat saat menjalankan, tidak disimpan di repo:)
-├── out/                         # hasil compile .class
-├── cp.txt                       # classpath Maven (dibuat oleh perintah di §7)
-├── results.csv                  # 900 baris hasil mentah
-├── summary.csv                  # rata-rata ± std per (algoritma, n)
-└── chart_*.png                  # grafik
+│   (dibuat saat menjalankan:)
+├── out/                         # hasil compile .class (di-gitignore)
+└── cp.txt                       # classpath Maven (di-gitignore, dibuat oleh perintah di §7)
 ```
 
 Ringkasan kode:
@@ -200,11 +204,11 @@ Ringkasan kode:
   - `fcfsAssign / mctAssign / minMinAssign`: ketiga algoritma. Min-Min memakai array boolean
     agar tetap praktis untuk n = 10.000.
   - `readCsv()`: membaca kolom `lengthMI`.
-- `plot_results.py`: membaca `results.csv` dan folder dataset (dicari otomatis di `../`, `./`,
-  atau `SOKA_v2/`), lalu menulis grafik dan `summary.csv`. Pemakaian:
-  `python plot_results.py [results.csv] [folder-dataset]`.
-- `validasi_python.py`: mereplikasi ketiga algoritma di Python untuk n task pertama dataset.
-  Dipakai untuk memeriksa `results.csv` (lihat §7, langkah 4).
+- `skrip/plot_results.py`: membaca `hasil/results.csv` dan folder `dataset/`, lalu menulis
+  `grafik/chart_*.png` dan `hasil/summary.csv`. Pemakaian:
+  `python skrip/plot_results.py [hasil/results.csv] [folder-dataset]`.
+- `skrip/validasi_python.py`: mereplikasi ketiga algoritma di Python untuk n task pertama dataset.
+  Dipakai untuk memeriksa `hasil/results.csv` (lihat §7, langkah 4).
 
 ---
 
@@ -224,7 +228,7 @@ Di Windows, ganti pemisah classpath `:` dengan `;`.
 mvn -q dependency:build-classpath -Dmdep.outputFile=SOKA_v2/cp.txt
 CP=$(cat SOKA_v2/cp.txt)
 mkdir -p SOKA_v2/out
-javac -cp "$CP" -d SOKA_v2/out SOKA_v2/SyntheticDatasetGenerator.java SOKA_v2/BatchRunner.java
+javac -cp "$CP" -d SOKA_v2/out SOKA_v2/kode/SyntheticDatasetGenerator.java SOKA_v2/kode/BatchRunner.java
 ```
 
 ### Langkah 2 — (Opsional) Bangkitkan ulang dataset sintetis
@@ -232,34 +236,34 @@ javac -cp "$CP" -d SOKA_v2/out SOKA_v2/SyntheticDatasetGenerator.java SOKA_v2/Ba
 Hasilnya deterministik; menjalankan ulang akan menghasilkan file yang sama.
 
 ```bash
-java -cp SOKA_v2/out SyntheticDatasetGenerator SOKA_v2/Dataset-Sintetik 10000 3
+java -cp SOKA_v2/out SyntheticDatasetGenerator SOKA_v2/dataset 10000 3
 ```
 
 ### Langkah 3 — Jalankan sweep (900 run)
 
 ```bash
-java -Xss128m -cp "SOKA_v2/out:$CP" BatchRunner SOKA_v2/Dataset-Sintetik SOKA_v2/results.csv
+java -Xss128m -cp "SOKA_v2/out:$CP" BatchRunner SOKA_v2/dataset SOKA_v2/hasil/results.csv
 ```
 
-Output: `SOKA_v2/results.csv`.
+Output: `SOKA_v2/hasil/results.csv`.
 
 ### Langkah 4 — Validasi dan grafik
 
 ```bash
 cd SOKA_v2
-python3 validasi_python.py Dataset-Sintetik/synthetic_seed1.csv 1000
-python3 plot_results.py results.csv
+python3 skrip/validasi_python.py dataset/synthetic_seed1.csv 1000
+python3 skrip/plot_results.py hasil/results.csv dataset
 ```
 
 Yang diharapkan dari `validasi_python.py` dibandingkan dengan baris `n_tasks = 1000`, `rep = 1`
-di `results.csv`:
+di `hasil/results.csv`:
 
 - `degree_of_imbalance` harus sama persis (sampai 4 desimal) untuk ketiga algoritma.
 - `makespan` berbeda sekitar 0,2–0,8% (Java selalu sedikit lebih tinggi karena overhead eksekusi CloudSim).
   Pengujian pada dataset sebelumnya menghasilkan selisih 0,15–0,8% untuk n = 100 sampai 3.000.
 
-Output grafik: `chart_makespan.png`, `chart_makespan_diff.png`, `chart_imbalance.png`,
-`chart_utilization.png`, dan `summary.csv`.
+Output grafik: `grafik/chart_makespan.png`, `grafik/chart_makespan_diff.png`,
+`grafik/chart_imbalance.png`, `grafik/chart_utilization.png`, dan `hasil/summary.csv`.
 
 ---
 
@@ -270,13 +274,13 @@ seluruh cloudlet berstatus **SUCCESS** (`cloudlet_success` = `n_tasks` di tiap b
 
 ### 8.1 Grafik utama
 
-![Makespan vs ukuran dataset](chart_makespan.png)
+![Makespan vs ukuran dataset](grafik/chart_makespan.png)
 
-![Selisih makespan terhadap batas bawah](chart_makespan_diff.png)
+![Selisih makespan terhadap batas bawah](grafik/chart_makespan_diff.png)
 
-![Degree of imbalance](chart_imbalance.png)
+![Degree of imbalance](grafik/chart_imbalance.png)
 
-![Utilization](chart_utilization.png)
+![Utilization](grafik/chart_utilization.png)
 
 ### 8.2 Tabel ringkasan (rata-rata 3 seed)
 
@@ -287,7 +291,7 @@ seluruh cloudlet berstatus **SUCCESS** (`cloudlet_success` = `n_tasks` di tiap b
 | 5.000 | **83.613,06** | 83.728,57 | 83.839,99 | 83.280,90 |
 | 10.000 | **166.681,08** | 167.050,91 | 167.077,65 | 166.127,71* |
 
-(makespan, detik, rata-rata 3 seed; tabel lengkap mean ± std ada di `summary.csv`)
+(makespan, detik, rata-rata 3 seed; tabel lengkap mean ± std ada di `hasil/summary.csv`)
 
 \* batas bawah rata-rata 3 seed; per seed dihitung dari ΣMI masing-masing dataset.
 
@@ -298,7 +302,7 @@ seluruh cloudlet berstatus **SUCCESS** (`cloudlet_success` = `n_tasks` di tiap b
    dari MCT.
 
 2. **Ketiga algoritma mendekati batas bawah teoritis.** Deviasi makespan
-   terhadap ΣMI/ΣMIPS (chart `chart_makespan_diff.png`) membaik seiring n:
+   terhadap ΣMI/ΣMIPS (grafik `grafik/chart_makespan_diff.png`) membaik seiring n:
    MCT 2,11% → 0,33%, FCFS 11,93% → 0,56%, Min-Min 6,78% → 0,57% (dari n=100
    ke n=10.000). Rata-rata deviasi: MCT **0,45%**, FCFS 0,94%, Min-Min 0,81%.
    MCT selalu paling dekat dengan batas bawah di seluruh rentang n.

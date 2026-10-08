@@ -3,11 +3,11 @@ validasi_python.py — replika Python dari tiga algoritma di BatchRunner.java
 (MCT, FCFS, Min-Min) untuk memeriksa hasil simulasi CloudSim Plus.
 
 Pemakaian (dari folder SOKA_v2):
-    python validasi_python.py ../Dataset-Sintetik/synthetic_seed1.csv 1000
+    python skrip/validasi_python.py dataset/synthetic_seed1.csv 1000
 
 Keluaran: makespan, Degree of Imbalance, utilisasi, dan throughput untuk
 ketiga algoritma pada n task pertama dataset. Angka ini seharusnya sama
-(selisih < 1%) dengan baris yang sesuai di results.csv.
+(selisih < 1%) dengan baris yang sesuai di hasil/results.csv.
 
 Catatan:
   - Setting mengikuti BatchRunner.java: 4 VM dengan MIPS 1.000 / 2.500 / 5.000 / 7.500,
@@ -82,7 +82,7 @@ def metrics(ready, lengths, mips):
 
 def main():
     if len(sys.argv) < 3:
-        print("Pemakaian: python validasi_python.py <dataset.csv> <n>")
+        print("Pemakaian: python skrip/validasi_python.py <dataset.csv> <n>")
         sys.exit(1)
     path = sys.argv[1]
     n = int(sys.argv[2])

@@ -34,9 +34,9 @@ import java.util.Random;
  *         synthetic_seed1.csv .. synthetic_seed3.csv.
  *
  * Pemakaian:
- *   javac -d out SyntheticDatasetGenerator.java
+ *   javac -d out kode/SyntheticDatasetGenerator.java
  *   java -cp out SyntheticDatasetGenerator [folder-output] [jumlah-task] [jumlah-seed]
- *   (default: folder "Dataset-Sintetik", 10.000 task, 3 seed)
+ *   (default: folder "dataset", 10.000 task, 3 seed)
  */
 public class SyntheticDatasetGenerator {
 
@@ -53,7 +53,7 @@ public class SyntheticDatasetGenerator {
     static final int DEFAULT_SEEDS = 3;
 
     public static void main(String[] args) throws IOException {
-        String outDir = args.length > 0 ? args[0] : "Dataset-Sintetik";
+        String outDir = args.length > 0 ? args[0] : "dataset";
         int numTasks = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_TASKS;
         int numSeeds = args.length > 2 ? Integer.parseInt(args[2]) : DEFAULT_SEEDS;
 

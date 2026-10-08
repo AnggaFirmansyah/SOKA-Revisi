@@ -39,7 +39,7 @@ import java.util.Optional;
  *     VM-1 (Medium) & VM-2 (Large) -> Host-1.
  *
  * Uji coba: n = 100..10.000 (kelipatan 100), tiap n diulang 3 kali
- * (seed dataset 1/2/3), hasil rata-rata diekspor ke results.csv.
+ * (seed dataset 1/2/3), hasil rata-rata diekspor ke hasil/results.csv.
  */
 public class BatchRunner {
 
@@ -56,8 +56,8 @@ public class BatchRunner {
     static final long VM_SIZE = 10_000;
 
     public static void main(String[] args) throws IOException {
-        String dataDir = args.length > 0 ? args[0] : "Dataset-Sintetik";
-        String outFile = args.length > 1 ? args[1] : "results.csv";
+        String dataDir = args.length > 0 ? args[0] : "dataset";
+        String outFile = args.length > 1 ? args[1] : "hasil/results.csv";
 
         List<String> csvFiles = Arrays.asList(
                 Paths.get(dataDir, "synthetic_seed1.csv").toString(),
