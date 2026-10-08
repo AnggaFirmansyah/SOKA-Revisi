@@ -166,10 +166,10 @@ Selisih 0,7-1,3% konsisten di ketiganya, sejalan dengan jeda minimum antar-event
 └── SOKA_v2/                             # REVISI Minggu 4 (uji coba skala)
     ├── SyntheticDatasetGenerator.java   # generator dataset sintetis (kriteria sendiri)
     ├── BatchRunner.java                 # sweep n=100–10.000, 3 seed, 3 algoritma
-    ├── plot_results.py                  # 5 grafik + summary.csv
+    ├── plot_results.py                  # 4 grafik + summary.csv
     ├── Dataset-Sintetik/                # synthetic_seed1..3.csv
     ├── results.csv / summary.csv        # hasil sweep
-    ├── chart_*.png                      # 5 grafik
+    ├── chart_*.png                      # 4 grafik
     └── README.md                        # dokumentasi lengkap revisi (cara menjalankan, hasil, analisis)
 ```
 
