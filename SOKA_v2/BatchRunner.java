@@ -204,10 +204,11 @@ public class BatchRunner {
 
         // --- Buat semua datacenter dari DC_SPECS ---
         // allHosts menampung seluruh host (lintas DC) untuk keperluan placement VM.
+        for (DatacenterSpec spec : DC_SPECS) {
             new DatacenterSimple(
-                    simulation,
-                    buatHostList(spec),
-                    new VmAllocationPolicyFirstFit());
+                simulation,
+                buatHostList(spec),
+                new VmAllocationPolicyFirstFit());
         }
 
         DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
