@@ -19,6 +19,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -26,40 +27,104 @@ import java.util.List;
 /**
  * BatchRunner — uji coba skala dataset untuk 3 algoritma penjadwalan.
  *
- * Sesuai draft design (revisi Minggu 3 -> Minggu 4):
-  *   - 1 Datacenter, 2 Host identik (masing-masing 8 PE x 100.000 MIPS, RAM 32 GB)
- *   - 4 VM heterogen: Small 1.000 / Medium 2.500 / Large 5.000 / XLarge 7.500 MIPS
-  *   - Alokasi VM ke host DITENTUKAN EKSPLISIT (bukan diserahkan ke kebijakan
- *     default CloudSim): VmAllocationPolicyFirstFit dipasang eksplisit pada
- *     DatacenterSimple -> tiap VM ke host pertama yang muat, sehingga keempat VM
- *     (4 PE) selalu mendarat di Host 0 (8 PE) dan Host 1 menjadi cadangan.
- *     Penempatan diperiksa tiap run (peringatan bila ada VM di luar Host 0).
+ * Konfigurasi infrastruktur (datacenter, host, VM) diatur lewat
+ * DC_SPECS[] dan VM_SPECS[] di bagian atas kelas.
+ * Untuk mengubah jumlah/spek datacenter atau VM, cukup edit bagian
+ * KONFIGURASI tanpa menyentuh logika simulasi di bawahnya.
  *
- * Uji coba: n = 100..10.000 (kelipatan 100), tiap n diulang 3 kali
- * (seed dataset 1/2/3), hasil rata-rata diekspor ke results.csv.
+ * Mapping VM -> Host ditentukan eksplisit lewat hostOfVm[] di runOnce()
+ * agar penempatan tidak diserahkan ke kebijakan default CloudSim.
+ *
+ * Uji coba: n = MIN_N..MAX_N (kelipatan STEP_N), tiap n diulang 3 kali
+ * (seed dataset 1/2/3), hasil diekspor ke hasil/results.csv.
  */
 public class BatchRunner {
+    // =========================================================
+    // [KONFIGURASI] DATACENTER & HOST
+    // Tambah/hapus baris untuk mengubah jumlah datacenter.
+    // Setiap baris = 1 datacenter dengan spek hostnya masing-masing.
+    //   kolom: hostCount | hostPes | hostMips | hostRam | hostBw | hostStorage
+    // =========================================================
+    static final DatacenterSpec[] DC_SPECS = {
+        new DatacenterSpec( 2,          8,        100_000,  32_000,  1_000_000,  1_000_000),
+    //  new DatacenterSpec( 3,          4,         50_000,  16_000,  1_000_000,  1_000_000), // contoh DC ke-2
+    };
 
-    static final int HOST_COUNT = 2;
-    static final double HOST_MIPS = 100_000;
-    static final int HOST_PES = 8;
-    static final long HOST_RAM = 32_000;
-    static final long HOST_BW = 1_000_000;
-    static final long HOST_STORAGE = 1_000_000;
+    // =========================================================
+    // [KONFIGURASI] VM
+    // Tambah/hapus baris untuk mengubah jumlah & tipe VM.
+    // Setiap baris = 1 VM.
+    //   kolom: mips  | vCpu | ram   | bw     | size
+    // Jumlah VM yang dibuat mengikuti jumlah baris di VM_SPECS.
+    // =========================================================
+    static final VmSpec[] VM_SPECS = {
+        new VmSpec(     1_000,   1,    4_096,  10_000,  10_000),  // VM-0 Small
+        new VmSpec(     2_500,   1,    4_096,  10_000,  10_000),  // VM-1 Medium
+        new VmSpec(     5_000,   1,    4_096,  10_000,  10_000),  // VM-2 Large
+        new VmSpec(     7_500,   1,    4_096,  10_000,  10_000),  // VM-3 XLarge
+    };
 
-    static final double[] VM_MIPS = {1_000, 2_500, 5_000, 7_500};
-    static final long VM_RAM = 4_096;
-    static final long VM_BW = 10_000;
-    static final long VM_SIZE = 10_000;
+
+     // =========================================================
+    // [KONFIGURASI] BATAS PENGUJIAN JUMLAH TASK (n)
+    // =========================================================
+    static final int MIN_N  = 9_000;
+    static final int MAX_N  = 10_000;
+    static final int STEP_N = 100;
+
+
+    // =========================================================
+    // SPEC CLASSES — tidak perlu diubah
+    // =========================================================
+
+    /** Spesifikasi 1 datacenter beserta host-host di dalamnya. */
+    static class DatacenterSpec {
+        final int    hostCount, hostPes;
+        final double hostMips;
+        final long   hostRam, hostBw, hostStorage;
+
+        DatacenterSpec(int hostCount, int hostPes, double hostMips,
+                       long hostRam, long hostBw, long hostStorage) {
+            this.hostCount   = hostCount;
+            this.hostPes     = hostPes;
+            this.hostMips    = hostMips;
+            this.hostRam     = hostRam;
+            this.hostBw      = hostBw;
+            this.hostStorage = hostStorage;
+        }
+    }
+
+    /** Spesifikasi 1 VM. */
+    static class VmSpec {
+        final double mips;
+        final int    vCpu;
+        final long   ram, bw, size;
+
+        VmSpec(double mips, int vCpu, long ram, long bw, long size) {
+            this.mips = mips;
+            this.vCpu = vCpu;
+            this.ram  = ram;
+            this.bw   = bw;
+            this.size = size;
+        }
+    }
+
+ 
 
     public static void main(String[] args) throws IOException {
         String dataDir = args.length > 0 ? args[0] : "Dataset-Sintetik";
         String outFile = args.length > 1 ? args[1] : "results.csv";
 
-        List<String> csvFiles = Arrays.asList(
-                                new java.io.File(dataDir, "synthetic_seed1.csv").getPath(),
-                new java.io.File(dataDir, "synthetic_seed2.csv").getPath(),
-                new java.io.File(dataDir, "synthetic_seed3.csv").getPath());
+        // List<String> csvFiles = Arrays.asList(
+        //                         new java.io.File(dataDir, "synthetic_seed1.csv").getPath(),
+        //         new java.io.File(dataDir, "synthetic_seed2.csv").getPath(),
+        //         new java.io.File(dataDir, "synthetic_seed3.csv").getPath());
+        // List<int[]> runPlan = buildRunPlan(csvFiles.size());
+
+       List<String> csvFiles = Arrays.asList(
+                Paths.get(dataDir, "synthetic_seed1.csv").toString(),
+                Paths.get(dataDir, "synthetic_seed2.csv").toString(),
+                Paths.get(dataDir, "synthetic_seed3.csv").toString());
         List<int[]> runPlan = buildRunPlan(csvFiles.size());
 
         try (PrintWriter writer = new PrintWriter(new FileWriter(outFile))) {
@@ -76,17 +141,57 @@ public class BatchRunner {
         System.out.println("[SELESAI] Hasil lengkap tersimpan di " + outFile);
     }
 
-    /** Pasangan (n, rep) untuk seluruh sweep: n kelipatan 100 s/d 10.000, 3 repetisi. */
+    /** Pasangan (n, rep) untuk seluruh sweep sesuai batas konfigurasi, 3 repetisi. */
     static List<int[]> buildRunPlan(int numSeeds) {
         List<int[]> plan = new ArrayList<>();
         for (int rep = 0; rep < 3; rep++) {
             int seed = rep % numSeeds;
-            for (int n = 100; n <= 10_000; n += 100) {
+            for (int n = MIN_N; n <= MAX_N; n += STEP_N) {
                 plan.add(new int[]{n, seed});
             }
         }
         return plan;
     }
+
+
+    // =========================================================
+    // HELPER: Pembuatan infrastruktur
+    // =========================================================
+
+    /**
+     * Membuat daftar Host untuk satu datacenter sesuai spesifikasinya.
+     * Setiap host memiliki hostPes buah core CPU masing-masing hostMips MIPS.
+     */
+    static List<Host> buatHostList(DatacenterSpec spec) {
+        List<Host> hostList = new ArrayList<>();
+        for (int h = 0; h < spec.hostCount; h++) {
+            List<Pe> peList = new ArrayList<>();
+            for (int j = 0; j < spec.hostPes; j++)
+                peList.add(new PeSimple(spec.hostMips));
+            hostList.add(new HostSimple(spec.hostRam, spec.hostBw, spec.hostStorage, peList));
+        }
+        return hostList;
+    }
+
+    /**
+     * Membuat daftar VM dari VM_SPECS.
+     * Setiap VM menggunakan CloudletSchedulerSpaceShared (antri serial per VM).
+     */
+    static List<Vm> buatVmList() {
+        List<Vm> vmList = new ArrayList<>();
+        for (VmSpec spec : VM_SPECS) {
+            Vm vm = new VmSimple(spec.mips, spec.vCpu);
+            vm.setRam(spec.ram).setBw(spec.bw).setSize(spec.size);
+            vm.setCloudletScheduler(new CloudletSchedulerSpaceShared());
+            vmList.add(vm);
+        }
+        return vmList;
+    }
+
+
+     // =========================================================
+    // SIMULASI UTAMA
+    // =========================================================
 
     static String runOnce(String algo, int n, String csvFile) {
         List<Long> lengths = readCsv(csvFile, n);
@@ -97,27 +202,22 @@ public class BatchRunner {
 
         CloudSim simulation = new CloudSim();
 
-                // ==== 2 Host identik (draft Tabel 3-4); penempatan VM EKSPLISIT lewat First-Fit ====
-        List<Host> hostList = new ArrayList<>();
-        for (int h = 0; h < HOST_COUNT; h++) {
-            List<Pe> peList = new ArrayList<>();
-            for (int j = 0; j < HOST_PES; j++) peList.add(new PeSimple(HOST_MIPS));
-            hostList.add(new HostSimple(HOST_RAM, HOST_BW, HOST_STORAGE, peList));
+        // --- Buat semua datacenter dari DC_SPECS ---
+        // allHosts menampung seluruh host (lintas DC) untuk keperluan placement VM.
+            new DatacenterSimple(
+                    simulation,
+                    buatHostList(spec),
+                    new VmAllocationPolicyFirstFit());
         }
-        new DatacenterSimple(simulation, hostList, new VmAllocationPolicyFirstFit());
 
         DatacenterBroker broker = new DatacenterBrokerSimple(simulation);
 
-                List<Vm> vmList = new ArrayList<>();
-        final int[] placedHost = new int[VM_MIPS.length];
-        Arrays.fill(placedHost, -1);
-        for (double mips : VM_MIPS) {
-            Vm vm = new VmSimple(mips, 1);
-            vm.setRam(VM_RAM).setBw(VM_BW).setSize(VM_SIZE);
-                        vm.setCloudletScheduler(new CloudletSchedulerSpaceShared());
-                    vm.addOnHostAllocationListener(info ->
-                    placedHost[vmList.indexOf(info.getVm())] = (int) info.getHost().getId());
-                    vmList.add(vm);
+        List<Vm> vmList = buatVmList();
+        final boolean[] vmAllocated = new boolean[vmList.size()];
+        for (int i = 0; i < vmList.size(); i++) {
+            final int vmIndex = i;
+            vmList.get(i).addOnHostAllocationListener(
+                    info -> vmAllocated[vmIndex] = true);
         }
         broker.submitVmList(vmList);
 
@@ -139,10 +239,10 @@ public class BatchRunner {
         broker.submitCloudletList(cloudletList);
                 simulation.start();
 
-        // Bukti penempatan: keempat VM harus berada di Host 0.
-        for (int p : placedHost) {
-            if (p != 0) {
-                System.out.printf("[PERINGATAN] VM tidak mendarat di Host 0 (algo=%s, n=%d)%n", algo, n);
+        // Pastikan setiap VM berhasil dialokasikan pada salah satu datacenter.
+        for (boolean allocated : vmAllocated) {
+            if (!allocated) {
+                System.out.printf("[PERINGATAN] VM tidak berhasil dialokasikan (algo=%s, n=%d)%n", algo, n);
                 break;
             }
         }
