@@ -1,0 +1,12 @@
+# 1 datacenter = 1 cluster Kubernetes (kind)
+# 2 host = 2 worker node (label host=host-1 / host-2)
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker
+    labels:
+      host: host-1
+  - role: worker
+    labels:
+      host: host-2

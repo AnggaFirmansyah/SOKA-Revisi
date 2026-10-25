@@ -1,0 +1,59 @@
+# 4 "VM" (pod) -> 2 per host. requests == limits supaya CPU-nya benar2 dibatasi.
+# rasio CPU = rasio MIPS (XLarge 7500 MIPS = 1 core penuh)
+# host-1: vm-0 (Small 1000) + vm-3 (XLarge 7500)
+# host-2: vm-1 (Medium 2500) + vm-2 (Large 5000)
+apiVersion: v1
+kind: Pod
+metadata: { name: vm-0, labels: { app: vm, vmid: "0" } }
+spec:
+  nodeSelector: { host: host-1 }
+  containers:
+    - name: vm
+      image: python:3.12-slim
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources: { requests: { cpu: 133m }, limits: { cpu: 133m } }
+      volumeMounts: [{ name: code, mountPath: /app }]
+  volumes: [{ name: code, configMap: { name: worker-code } }]
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: vm-1, labels: { app: vm, vmid: "1" } }
+spec:
+  nodeSelector: { host: host-2 }
+  containers:
+    - name: vm
+      image: python:3.12-slim
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources: { requests: { cpu: 333m }, limits: { cpu: 333m } }
+      volumeMounts: [{ name: code, mountPath: /app }]
+  volumes: [{ name: code, configMap: { name: worker-code } }]
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: vm-2, labels: { app: vm, vmid: "2" } }
+spec:
+  nodeSelector: { host: host-2 }
+  containers:
+    - name: vm
+      image: python:3.12-slim
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources: { requests: { cpu: 667m }, limits: { cpu: 667m } }
+      volumeMounts: [{ name: code, mountPath: /app }]
+  volumes: [{ name: code, configMap: { name: worker-code } }]
+---
+apiVersion: v1
+kind: Pod
+metadata: { name: vm-3, labels: { app: vm, vmid: "3" } }
+spec:
+  nodeSelector: { host: host-1 }
+  containers:
+    - name: vm
+      image: python:3.12-slim
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      resources: { requests: { cpu: 1000m }, limits: { cpu: 1000m } }
+      volumeMounts: [{ name: code, mountPath: /app }]
+  volumes: [{ name: code, configMap: { name: worker-code } }]
