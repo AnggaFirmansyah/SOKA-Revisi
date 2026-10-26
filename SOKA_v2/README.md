@@ -3,6 +3,9 @@
 Revisi Tugas MCT (Minggu 4) mata kuliah **SOKA — Strategi Optimasi Komputasi Awan**, Kelompok 2.
 Implementasi menggunakan **CloudSim Plus 7.3.0** dengan Java 17.
 
+Panduan real-world test dengan Docker Desktop dan Kubernetes kind tersedia di
+[`real_world/README.md`](real_world/README.md).
+
 Revisi ini menjawab tiga catatan dosen terhadap laporan sebelumnya (poin 1–3 di bawah), ditambah kelengkapan kode beserta langkah menjalankannya dan satu koreksi internal pada rumus *Degree of Imbalance* (lihat §2):
 
 1. **Skala uji coba diperluas**: n = 100 s.d. 10.000 task (kelipatan 100), tiap skala **diulang 3 kali** (dataset sintetis seed 1/2/3), diambil **rata-rata**, lalu dibuat grafik.

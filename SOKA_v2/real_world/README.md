@@ -21,6 +21,23 @@ Mapping pod yang dipakai:
 | `soka-worker2` | `vm-1` | 2.500 MIPS |
 | `soka-worker2` | `vm-2` | 5.000 MIPS |
 
+## Quick start jika cluster sudah siap
+
+Kalau cluster `soka` dan pod VM sudah pernah dibuat, jalankan empat perintah ini:
+
+```powershell
+cd "D:\koleg-v2\Semester 5\SOKA\SOKA-Revisi\SOKA_v2\real_world"
+kubectl config use-context kind-soka
+kubectl get pods -l app=vm -o wide
+python dispatcher.py mct --n 1000
+```
+
+Untuk uji cepat sebelum test utama, ganti perintah terakhir menjadi:
+
+```powershell
+python dispatcher.py mct --n 50
+```
+
 ## Prasyarat
 
 - Windows PowerShell
@@ -255,7 +272,7 @@ Pastikan image sudah di-load ke cluster:
 & $kind load docker-image python:3.12-slim --name soka
 ```
 
-Jika tidak ada deployment, jalankan ulang:
+Jika pod tidak ada, jalankan ulang:
 
 ```powershell
 kubectl apply -f vms.yaml
