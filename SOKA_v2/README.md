@@ -6,6 +6,10 @@ Implementasi menggunakan **CloudSim Plus 7.3.0** dengan Java 17.
 Panduan real-world test dengan Docker Desktop dan Kubernetes kind tersedia di
 [`real_world/README.md`](real_world/README.md).
 
+Catatan interpretasi: pengujian ini adalah local real-world emulation pada satu perangkat fisik. Dua worker kind dipakai sebagai logical host dan empat pod dipakai sebagai logical VM.
+
+Real-world test juga mencetak estimasi CPU-equivalent cost berbasis harga referensi AWS, GCP, dan Azure. Estimasi ini bukan tagihan cloud aktual.
+
 Revisi ini menjawab tiga catatan dosen terhadap laporan sebelumnya (poin 1–3 di bawah), ditambah kelengkapan kode beserta langkah menjalankannya dan satu koreksi internal pada rumus *Degree of Imbalance* (lihat §2):
 
 1. **Skala uji coba diperluas**: n = 100 s.d. 10.000 task (kelipatan 100), tiap skala **diulang 3 kali** (dataset sintetis seed 1/2/3), diambil **rata-rata**, lalu dibuat grafik.

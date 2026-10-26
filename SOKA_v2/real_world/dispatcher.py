@@ -10,6 +10,24 @@ MIPS = [1000, 2500, 5000, 7500]      # vm-0 .. vm-3
 S = 50                               # faktor percepatan waktu (bisa diubah: --speedup)
 FULL_CORE_MIPS = 7500
 
+# Referensi harga On-Demand Linux, USD/jam, region US. Harga dapat berubah.
+# Harga terakhir dicatat pada 2026-10-26 dan hanya dipakai sebagai baseline laporan.
+COST_PROVIDERS = {
+    "aws": {"label": "AWS EC2 t3a.small", "vcpu": 2, "hourly": 0.0188, "region": "us-east-1"},
+    "gcp": {"label": "GCP Compute Engine e2-standard-2", "vcpu": 2, "hourly": 0.06701142, "region": "us-central1"},
+    "azure": {"label": "Azure VM Standard_DS1_v2", "vcpu": 1, "hourly": 0.073, "region": "eastus"},
+}
+
+
+def estimate_cost(provider, runtime_seconds):
+    """Estimate CPU-equivalent cloud cost from simulated VM runtimes."""
+    profile = COST_PROVIDERS[provider]
+    per_vm = [
+        seconds / 3600 * (MIPS[j] / FULL_CORE_MIPS) * profile["hourly"] / profile["vcpu"]
+        for j, seconds in enumerate(runtime_seconds)
+    ]
+    return {"per_vm": per_vm, "total": sum(per_vm)}
+
 def load_tasks(path, n):
     with open(path) as f:
         L = [int(r["lengthMI"]) for r in csv.DictReader(f)]
@@ -71,6 +89,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("algo", choices=ALGO); ap.add_argument("--n", type=int, default=0)
     ap.add_argument("--csv", default="../Dataset-Sintetik/synthetic_seed1.csv"); ap.add_argument("--speedup", type=int, default=50); ap.add_argument("--dry", action="store_true")
+    ap.add_argument("--cost-provider", choices=["all", *COST_PROVIDERS], default="all")
     a = ap.parse_args()
     global S; S = a.speedup
 
@@ -94,6 +113,12 @@ def main():
     util = sum(busy) / (len(MIPS) * mk)
     print(f"Makespan real : {mk:.2f} s   (ideal {ideal:.2f}, selisih {100*(mk-ideal)/ideal:+.2f}%)")
     print(f"DI            : {di:.4f}\nUtilization   : {util:.4f}\nThroughput    : {len(L)/mk:.4f} task/s")
+    providers = COST_PROVIDERS if a.cost_provider == "all" else {a.cost_provider: COST_PROVIDERS[a.cost_provider]}
+    print("Estimated cloud cost (USD, CPU-equivalent, simulated duration):")
+    for provider, profile in providers.items():
+        cost = estimate_cost(provider, F)
+        detail = ", ".join(f"vm-{j}=${value:.6f}" for j, value in enumerate(cost["per_vm"]))
+        print(f"  {profile['label']} ({profile['region']}): ${cost['total']:.6f} total [{detail}]")
     fn = f"real_{a.algo}_{time.strftime('%Y%m%d_%H%M%S')}.csv"
     with open(fn, "w", newline="") as f:
         w = csv.writer(f); w.writerow(["task", "vm", "start", "end"]); w.writerows(sorted(rows))
