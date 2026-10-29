@@ -58,6 +58,8 @@ Mengikuti Draft Design Project (Tugas Minggu 3):
 | VM | 4 | Small 1.000 / Medium 2.500 / Large 5.000 / XLarge 7.500 MIPS — 1 PE, RAM 4.096 MB, `CloudletSchedulerSpaceShared` |
 | Cloudlet | 100–10.000 | 1 PE per task, `UtilizationModelDynamic(1.0)` |
 
+> **Catatan versi kode.** Tabel di atas, `results.csv`, `summary.csv`, dan semua `chart_*.png` dihasilkan dengan konfigurasi **1 datacenter, 2 host identik, dan 4 VM masing-masing 1 PE**. `BatchRunner.java` versi terbaru dibuat lebih fleksibel: datacenter, host, dan VM (termasuk jumlah vCPU per VM) diatur lewat `DC_SPECS` dan `VM_SPECS` di bagian atas file, dan konfigurasi bawaannya sekarang berbeda (2 datacenter, VM 2, 2, 2, dan 4 vCPU, `MIN_N = 9_000`). Untuk mereproduksi hasil di dokumen ini, atur `DC_SPECS` menjadi satu datacenter (2 host × 8 PE × 100.000 MIPS), setiap `VmSpec` memakai `vCpu = 1`, dan `MIN_N = 100`. Dengan konfigurasi bawaan yang baru, keluaran `results.csv` juga berbeda (ada kolom tambahan `total_vm_mips`).
+
 ### 3.1 Alokasi VM ke Host (revisi poin 3)
 
 Draft Design §3.1 semula membiarkan penempatan VM ke host pada kebijakan default CloudSim Plus.
