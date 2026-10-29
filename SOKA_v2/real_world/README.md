@@ -21,6 +21,12 @@ Mapping pod yang dipakai:
 | `soka-worker2` | `vm-1` | 2.500 MIPS |
 | `soka-worker2` | `vm-2` | 5.000 MIPS |
 
+### Hubungan dengan simulasi sebelumnya
+
+Algoritma yang dijalankan di real-world sama dengan algoritma pada simulasi CloudSim sebelumnya (`SOKA_v2/BatchRunner.java`). MCT memilih VM dengan completion time terkecil dan, jika seri, memilih indeks VM terkecil. FCFS memilih VM yang paling cepat tersedia. Min-Min memilih pasangan task-VM dengan completion time terkecil di antara task yang tersisa.
+
+Perbedaannya ada pada model resource. Pada simulasi, tiap VM memiliki beberapa PE (vCPU 2, 2, 2, dan 4) dan penjadwalan dilakukan per PE. Pada real-world, tiap VM dimodelkan sebagai satu antrean eksekusi, yaitu satu pod dengan satu CPU limit, dan kecepatannya sama dengan MIPS VM tersebut. Dengan pemetaan 7.500 MIPS = 1 core, model multi-PE akan membutuhkan sekitar 6,3 core CPU limit, lebih besar dari 4 CPU Docker yang dipakai pada pengujian ini, sedangkan model satu antrean per VM hanya membutuhkan sekitar 2,13 core. Karena modelnya berbeda, angka real-world tidak dibandingkan langsung dengan angka simulasi. Yang dibandingkan adalah perilaku relatif antar-algoritma.
+
 ## Ruang lingkup pengujian
 
 Pengujian ini adalah **local real-world emulation**:
