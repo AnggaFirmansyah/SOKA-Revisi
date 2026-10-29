@@ -32,7 +32,7 @@ Pengujian ini adalah **local real-world emulation**:
 - `worker.py` benar-benar memakai CPU dengan busy loop, lalu `dispatcher.py` mengukur waktu eksekusinya.
 - Pengujian belum mengukur network antarperangkat fisik dan belum menghasilkan tagihan cloud aktual.
 
-Kalimat yang aman untuk laporan:
+Deskripsi yang tepat untuk pengujian ini:
 
 > Eksperimen dijalankan pada satu perangkat fisik menggunakan Docker Desktop dan Kubernetes kind. Dua worker node digunakan sebagai logical host, sedangkan empat pod digunakan sebagai logical VM. CPU limit diterapkan melalui cgroup dan task dieksekusi secara nyata pada CPU perangkat.
 
@@ -175,7 +175,7 @@ python dispatcher.py mct --n 50
 
 ### Test utama MCT
 
-Gunakan 1.000 task untuk hasil yang dipakai dalam laporan atau demo:
+Gunakan 1.000 task untuk hasil utama dan demo:
 
 ```powershell
 python dispatcher.py mct --n 1000
@@ -225,7 +225,7 @@ soka-worker  : vm-0, vm-3
 soka-worker2 : vm-1, vm-2
 ```
 
-## Bukti untuk demo atau laporan
+## Bukti konfigurasi untuk demo
 
 Jalankan perintah berikut dari folder `real_world` untuk merekam bukti konfigurasi:
 
@@ -336,9 +336,9 @@ Contoh estimasi dari hasil MCT 1.000 task yang sudah dijalankan:
 
 | Provider | Estimasi total |
 |---|---:|
-| AWS | USD 0,071911 |
-| GCP | USD 0,256323 |
-| Azure | USD 0,558458 |
+| AWS | USD 0,065841 |
+| GCP | USD 0,234686 |
+| Azure | USD 0,511319 |
 
 Sumber harga resmi:
 
@@ -378,47 +378,63 @@ Judul dan catatan grafik menyebut Docker Desktop, Kubernetes kind, dua logical h
 
 ## Interpretasi hasil real-world
 
-Interpretasi berikut memakai enam run pada `real_summary.csv`: MCT, FCFS, dan Min-Min pada 50 task serta 1.000 task. Semua run berjalan pada Docker Desktop dan Kubernetes kind dengan dua logical host dan empat logical VM.
+Interpretasi ini memakai **run 29 Oktober 2026** pada satu mesin dan kondisi yang sama. Enam run di folder ini (`real_*_20261029_*.csv`) menjadi dasar `real_summary.csv` dan semua grafik: MCT, FCFS, dan Min-Min pada 50 task serta 1.000 task. Tiga ulangan tambahan untuk n=1.000 per algoritma disimpan di `arsip/ulangan/` untuk mengukur stabilitas hasil. Semua run berjalan pada Docker Desktop dan Kubernetes kind dengan dua logical host dan empat logical VM.
 
 ### Ringkasan hasil utama
 
-| Jumlah task | Algoritma | Makespan real (s) | Overhead terhadap ideal | DI | Utilization | Throughput (task/s) | AWS cost (USD) |
-|---:|---|---:|---:|---:|---:|---:|---:|
-| 50 | MCT | 719,40 | 26,41% | 0,0819 | 0,7625 | 0,0695 | 0,003974 |
-| 50 | FCFS | 759,32 | 25,73% | 0,0709 | 0,9582 | 0,0658 | 0,004052 |
-| 50 | Min-Min | 647,33 | -0,13% | 1,3181 | 0,6648 | 0,0772 | 0,003115 |
-| 1.000 | MCT | **13.049,32** | 9,29% | 0,0610 | 0,9759 | **0,0766** | **0,071911** |
-| 1.000 | FCFS | 13.083,01 | **8,67%** | **0,0389** | **0,9819** | 0,0764 | 0,072494 |
-| 1.000 | Min-Min | 13.323,99 | 10,56% | 0,1143 | 0,9622 | 0,0751 | 0,073145 |
+| Jumlah task | Algoritma | Makespan real (s) | Makespan ideal (s) | Overhead terhadap ideal | DI | Utilization | Throughput (task/s) | AWS cost (USD) |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 50 | MCT | 567,02 | 569,08 | -0,36% | 0,0858 | 0,9695 | 0,0882 | 0,003116 |
+| 50 | FCFS | 590,71 | 603,91 | -2,19% | 0,0918 | 0,9463 | 0,0846 | 0,003113 |
+| 50 | Min-Min | 649,83 | 648,15 | 0,26% | 1,3241 | 0,6631 | 0,0769 | 0,003123 |
+| 1.000 | MCT | 11.967,58 | 11.939,99 | 0,23% | 0,0652 | 0,9731 | 0,0836 | 0,065841 |
+| 1.000 | FCFS | 11.899,78 | 12.039,02 | -1,16% | 0,0449 | 0,9844 | 0,0840 | 0,065828 |
+| 1.000 | Min-Min | 11.996,02 | 12.051,62 | -0,46% | 0,1134 | 0,9614 | 0,0834 | 0,065838 |
+
+### Stabilitas hasil (n=1.000, 4 run per algoritma)
+
+| Algoritma | Jumlah run | Rata-rata makespan real (s) | Rentang (s) | Makespan ideal (s) | Rata-rata overhead | Rata-rata DI | Rata-rata utilization |
+|---|---:|---:|---|---:|---:|---:|---:|
+| MCT | 4 | 11.967,47 | 11.963,75 – 11.972,65 | 11.939,99 | 0,23% | 0,0654 | 0,9731 |
+| FCFS | 4 | 11.900,35 | 11.889,13 – 11.908,68 | 12.039,02 | -1,15% | 0,0447 | 0,9844 |
+| Min-Min | 4 | 11.996,96 | 11.993,75 – 12.002,84 | 12.051,62 | -0,45% | 0,1132 | 0,9617 |
+
+Variasi antar-run sangat kecil, yaitu 0,07% sampai 0,16% dari makespan. Urutan makespan real sama pada keempat run: FCFS, lalu MCT, lalu Min-Min. Distribusi task per VM identik pada setiap run karena penjadwalan bersifat deterministik.
 
 ### Perbandingan algoritma
 
-1. **MCT paling baik untuk workload utama 1.000 task.** MCT menghasilkan makespan terendah, yaitu 13.049,32 detik. Nilai ini 33,69 detik lebih cepat daripada FCFS dan 274,67 detik lebih cepat daripada Min-Min. MCT juga menghasilkan throughput tertinggi dan estimasi biaya AWS terendah pada n=1.000.
+1. **Pada n=1.000, ketiga algoritma hampir setara dalam makespan real.** Selisih FCFS dengan MCT sekitar 0,56% dan selisih MCT dengan Min-Min sekitar 0,25%. Selisih sekecil ini tidak cukup untuk menyatakan satu algoritma jauh lebih baik.
 
-2. **FCFS paling baik dalam pemakaian resource pada n=1.000.** FCFS memiliki utilization tertinggi, yaitu 0,9819, dan DI terendah, yaitu 0,0389. Artinya, pada run ini total waktu busy antar-VM paling merata dan resource paling sedikit menganggur. FCFS memiliki overhead terhadap jadwal ideal paling rendah, yaitu 8,67%.
+2. **Urutan makespan ideal berbeda dari makespan real.** Pada jadwal ideal, MCT paling rendah (11.939,99 s), disusul FCFS (12.039,02 s) dan Min-Min (12.051,62 s). Pada eksekusi nyata, FCFS justru paling rendah. Penyebabnya adalah pembulatan kuota CPU oleh Kubernetes. Limit 133m, 333m, 667m, dan 1000m tercatat di `cpu.max` sebagai 14000, 34000, 67000, dan 100000 mikrodetik per periode 100000 mikrodetik, sehingga limit efektif menjadi 140m, 340m, 670m, dan 1000m. VM yang lebih kecil mendapat CPU sedikit di atas nominal. Pada FCFS, VM penentu makespan ideal adalah vm-1, yang memperoleh tambahan ini. Pada MCT, VM penentu adalah vm-3, yang tidak memperoleh tambahan. Jika makespan ideal dihitung ulang dengan kecepatan efektif tersebut, prediksinya adalah MCT 11.940,0 s, FCFS 11.871,2 s, dan Min-Min 11.991,7 s, dan selisihnya dengan rata-rata terukur hanya 0,04% sampai 0,25%. Jadi keunggulan FCFS pada makespan real merupakan efek konfigurasi quota CPU, bukan bukti bahwa FCFS lebih baik secara algoritmik.
 
-3. **Min-Min unggul pada smoke test 50 task, tetapi tidak konsisten untuk workload besar.** Pada n=50, Min-Min menghasilkan makespan 647,33 detik dan throughput 0,0772 task/s. Namun, distribusi task-nya sangat terkonsentrasi pada VM tercepat, yaitu `[1, 7, 16, 26]`, sehingga DI mencapai 1,3181 dan utilization hanya 0,6648. Pada n=1.000, pola ini membuat Min-Min menjadi yang paling lambat, paling rendah throughput-nya, dan memiliki DI tertinggi di antara tiga algoritma.
+3. **MCT paling baik pada workload kecil (n=50).** MCT menghasilkan makespan 567,02 s, FCFS 590,71 s, dan Min-Min 649,83 s. Urutan ini sama dengan urutan makespan ideal (569,08 s, 603,91 s, dan 648,15 s). Pada jumlah task kecil, keputusan penempatan tiap task berpengaruh lebih besar terhadap hasil akhir.
 
-4. **MCT tidak selalu memiliki overhead persentase paling rendah.** Pada n=1.000, overhead MCT adalah 9,29%, sedikit di atas FCFS 8,67%. Hal ini tidak membatalkan hasil makespan MCT. Overhead dihitung terhadap ideal masing-masing algoritma, sedangkan ideal MCT memang lebih rendah. Karena itu, makespan real dan overhead perlu dibaca bersama, bukan memakai overhead saja untuk menentukan algoritma terbaik.
+4. **FCFS paling merata, Min-Min paling timpang.** FCFS memiliki DI terendah (0,0447) dan utilization tertinggi (0,9844). Min-Min memiliki DI tertinggi (0,1132) karena menumpuk task pada VM tercepat, dengan distribusi `[60, 155, 314, 471]` pada n=1.000 dan `[1, 7, 16, 26]` pada n=50. Pada n=50, DI Min-Min mencapai 1,3241 dan utilization turun menjadi 0,6631.
 
-5. **Cost mengikuti durasi workload.** Pada n=1.000, urutan estimasi biaya adalah MCT, FCFS, lalu Min-Min. Perbedaannya kecil karena ketiga algoritma menjalankan total workload yang sama dan memakai empat logical VM yang sama. Cost bukan pengukuran tagihan Docker lokal, melainkan CPU-equivalent estimate berdasarkan durasi simulasi dan harga referensi provider.
+5. **Cost tidak membedakan algoritma.** Estimasi cost dihitung dari total CPU-equivalent dan durasi simulasi, sedangkan total workload sama untuk ketiga algoritma. Pada n=1.000, selisih estimasi AWS antar-algoritma di bawah 0,0001 USD, sehingga cost tidak dipakai sebagai dasar memilih algoritma.
 
-6. **n=50 dipengaruhi overhead eksekusi lokal.** Pada workload kecil, waktu persiapan `kubectl exec`, barrier start, CPU throttling, dan variasi scheduler laptop mengambil porsi besar dari total waktu. Karena itu, hasil n=1.000 lebih tepat dipakai untuk kesimpulan utama. Hasil n=50 tetap berguna untuk menunjukkan perilaku algoritma pada workload kecil.
+6. **n=50 dipakai sebagai smoke test.** Satu run n=50 hanya berlangsung sekitar 11 detik waktu nyata, sehingga hasilnya lebih sensitif terhadap kondisi mesin. Kesimpulan utama diambil dari n=1.000, dan n=50 dipakai untuk memperlihatkan perilaku algoritma pada workload kecil.
 
-### Kesimpulan untuk laporan
+### Perbandingan dengan run awal 26 Oktober 2026
 
-Pada local real-world emulation ini, **MCT menjadi pilihan utama untuk workload 1.000 task** karena menghasilkan makespan dan cost terendah serta throughput tertinggi. **FCFS menjadi pilihan terbaik jika prioritasnya adalah utilization dan pemerataan waktu busy antar-VM.** **Min-Min dapat unggul pada workload kecil tertentu, tetapi cenderung memusatkan task pada VM tercepat sehingga DI meningkat dan utilization turun.**
+Run awal pada 26 Oktober 2026 disimpan di `arsip/26okt/` dan **tidak dipakai** untuk kesimpulan. Pada run itu, makespan real untuk n=1.000 sekitar 9% sampai 10% lebih lambat daripada ideal, dan waktu busy keempat VM naik seragam sekitar 9% dibanding prediksi. Pola seragam seperti ini khas persaingan CPU di level host, dugaan yang belum diverifikasi pada mesin tersebut, misalnya jumlah core yang dialokasikan ke Docker atau WSL2 lebih sedikit dari total limit pod (sekitar 2,13 core), atau ada aplikasi lain yang berjalan. Pada run 26 Oktober n=50 juga tidak konsisten antar algoritma (overhead MCT 26,41%, FCFS 25,73%, Min-Min -0,13%). Kodenya sama, sehingga perbedaan hasil menunjukkan bahwa pengukuran real-world sensitif terhadap kondisi host. Karena itu hasil 29 Oktober, yang diulang beberapa kali dan stabil, dipakai sebagai dasar.
 
-Kesimpulan tersebut berlaku untuk konfigurasi lokal yang diuji: satu device fisik, Docker Desktop, dua logical host kind, empat logical VM berbasis pod, CPU limit Kubernetes, dan dataset `synthetic_seed1.csv`. Kesimpulan ini tidak menyatakan bahwa hasilnya identik dengan dua server fisik, Proxmox, atau cloud instance terpisah.
+### Kesimpulan
 
-Hasil yang sudah pernah dibuat:
+Pada local real-world emulation ini, ketiga algoritma menghasilkan makespan yang hampir setara pada 1.000 task (selisih di bawah 0,6%). **MCT** unggul pada jadwal ideal dan pada workload kecil. **FCFS** paling merata antar-VM (DI terendah, utilization tertinggi). **Min-Min** paling timpang karena memusatkan task pada VM tercepat. Perbedaan antara urutan ideal dan urutan real dijelaskan oleh pembulatan kuota CPU Kubernetes.
 
-- `real_mct_20261026_114418.csv`, smoke test 50 task
-- `real_fcfs_20261026_144337.csv`, FCFS 50 task
-- `real_minmin_20261026_144358.csv`, Min-Min 50 task
-- `real_mct_20261026_114911.csv`, MCT 1.000 task
-- `real_fcfs_20261026_115401.csv`, FCFS 1.000 task
-- `real_minmin_20261026_115849.csv`, Min-Min 1.000 task
+Kesimpulan tersebut berlaku untuk konfigurasi lokal yang diuji: satu device fisik, Docker Desktop, dua logical host kind, empat logical VM berbasis pod, CPU limit Kubernetes, faktor percepatan waktu 50x (`--speedup 50`), dan dataset `synthetic_seed1.csv`. Kesimpulan ini tidak menyatakan bahwa hasilnya identik dengan dua server fisik, Proxmox, atau cloud instance terpisah.
+
+Run yang dipakai:
+
+- `real_mct_20261029_020024.csv`, MCT 50 task
+- `real_fcfs_20261029_022116.csv`, FCFS 50 task
+- `real_minmin_20261029_022734.csv`, Min-Min 50 task
+- `real_mct_20261029_023717.csv`, MCT 1.000 task
+- `real_fcfs_20261029_024122.csv`, FCFS 1.000 task
+- `real_minmin_20261029_024530.csv`, Min-Min 1.000 task
+
+Ulangan n=1.000 (tiga per algoritma, plus satu run MCT n=50 tambahan) ada di `arsip/ulangan/`. Run awal 26 Oktober ada di `arsip/26okt/`.
 
 ## Troubleshooting
 
