@@ -21,11 +21,14 @@ Mapping pod yang dipakai:
 | `soka-worker2` | `vm-1` | 2.500 MIPS |
 | `soka-worker2` | `vm-2` | 5.000 MIPS |
 
-### Hubungan dengan simulasi sebelumnya
+## Hubungan dengan simulasi sebelumnya
 
-Algoritma yang dijalankan di real-world sama dengan algoritma pada simulasi CloudSim sebelumnya (`SOKA_v2/BatchRunner.java`). MCT memilih VM dengan completion time terkecil dan, jika seri, memilih indeks VM terkecil. FCFS memilih VM yang paling cepat tersedia. Min-Min memilih pasangan task-VM dengan completion time terkecil di antara task yang tersisa.
+Algoritma penjadwalannya sama dengan simulasi CloudSim: MCT, FCFS, dan Min-Min, termasuk tie-break ke indeks VM terkecil. Yang berbeda hanya model resource tiap VM:
 
-Perbedaannya ada pada model resource. Pada simulasi, tiap VM memiliki beberapa PE (vCPU 2, 2, 2, dan 4) dan penjadwalan dilakukan per PE. Pada real-world, tiap VM dimodelkan sebagai satu antrean eksekusi, yaitu satu pod dengan satu CPU limit, dan kecepatannya sama dengan MIPS VM tersebut. Dengan pemetaan 7.500 MIPS = 1 core, model multi-PE akan membutuhkan sekitar 6,3 core CPU limit, lebih besar dari 4 CPU Docker yang dipakai pada pengujian ini, sedangkan model satu antrean per VM hanya membutuhkan sekitar 2,13 core. Karena modelnya berbeda, angka real-world tidak dibandingkan langsung dengan angka simulasi. Yang dibandingkan adalah perilaku relatif antar-algoritma.
+- Simulasi satu-run (`src/main/java/*Simulation.java`) memakai 1 PE per VM, sama dengan real-world: satu antrean eksekusi per VM, karena satu pod hanya punya satu CPU limit.
+- `SOKA_v2/BatchRunner.java` versi terbaru dapat memodelkan VM multi-vCPU (konfigurasi 2, 2, 2, dan 4 vCPU). Dengan pemetaan 7.500 MIPS = 1 core, model itu butuh sekitar 6,27 core CPU limit, melebihi 4 CPU Docker. Model satu antrean hanya butuh sekitar 2,13 core.
+
+Karena modelnya berbeda dan datasetnya juga (CloudSim memakai GoCJ atau sintetis, real-world memakai `synthetic_seed1.csv` dengan `--speedup 50`), angka real-world dibandingkan dengan makespan ideal model yang sama, bukan langsung dengan angka CloudSim. Yang dibandingkan antar-algoritma adalah perilaku relatifnya.
 
 ## Ruang lingkup pengujian
 
@@ -280,14 +283,14 @@ Setiap test mencetak:
 - utilization
 - throughput
 
-Contoh hasil MCT 1.000 task dari pengujian lokal:
+Contoh hasil MCT 1.000 task dari run 29 Oktober 2026 (hasil utama):
 
 ```text
 [MCT] 1000 task | distribusi per VM: [209, 277, 272, 242] | makespan ideal: 11939.99 s
-Makespan real : 13049.32 s   (ideal 11939.99, selisih +9.29%)
-DI            : 0.0610
-Utilization   : 0.9759
-Throughput    : 0.0766 task/s
+Makespan real : 11967.58 s   (ideal 11939.99, selisih +0.23%)
+DI            : 0.0652
+Utilization   : 0.9731
+Throughput    : 0.0836 task/s
 ```
 
 File detail per task dibuat otomatis di folder `real_world`:
@@ -411,7 +414,7 @@ Variasi antar-run sangat kecil, yaitu 0,07% sampai 0,16% dari makespan. Urutan m
 
 1. **Pada n=1.000, ketiga algoritma hampir setara dalam makespan real.** Selisih FCFS dengan MCT sekitar 0,56% dan selisih MCT dengan Min-Min sekitar 0,25%. Selisih sekecil ini tidak cukup untuk menyatakan satu algoritma jauh lebih baik.
 
-2. **Urutan makespan ideal berbeda dari makespan real.** Pada jadwal ideal, MCT paling rendah (11.939,99 s), disusul FCFS (12.039,02 s) dan Min-Min (12.051,62 s). Pada eksekusi nyata, FCFS justru paling rendah. Penyebabnya adalah pembulatan kuota CPU oleh Kubernetes. Limit 133m, 333m, 667m, dan 1000m tercatat di `cpu.max` sebagai 14000, 34000, 67000, dan 100000 mikrodetik per periode 100000 mikrodetik, sehingga limit efektif menjadi 140m, 340m, 670m, dan 1000m. VM yang lebih kecil mendapat CPU sedikit di atas nominal. Pada FCFS, VM penentu makespan ideal adalah vm-1, yang memperoleh tambahan ini. Pada MCT, VM penentu adalah vm-3, yang tidak memperoleh tambahan. Jika makespan ideal dihitung ulang dengan kecepatan efektif tersebut, prediksinya adalah MCT 11.940,0 s, FCFS 11.871,2 s, dan Min-Min 11.991,7 s, dan selisihnya dengan rata-rata terukur hanya 0,04% sampai 0,25%. Jadi keunggulan FCFS pada makespan real merupakan efek konfigurasi quota CPU, bukan bukti bahwa FCFS lebih baik secara algoritmik.
+2. **Urutan makespan ideal berbeda dari makespan real.** Pada jadwal ideal, MCT paling rendah (11.939,99 s), disusul FCFS (12.039,02 s) dan Min-Min (12.051,62 s). Pada eksekusi nyata, FCFS justru paling rendah. Penyebabnya adalah pembulatan kuota CPU oleh Kubernetes. Limit 133m, 333m, 667m, dan 1000m tercatat di `cpu.max` sebagai 14000, 34000, 67000, dan 100000 mikrodetik per periode 100000 mikrodetik, sehingga limit efektif menjadi 140m, 340m, 670m, dan 1000m. VM yang lebih kecil mendapat CPU sedikit di atas nominal. Pada FCFS, VM penentu makespan ideal adalah vm-1, yang memperoleh tambahan ini. Pada MCT, VM penentu adalah vm-3, yang tidak memperoleh tambahan. Jika makespan ideal dihitung ulang dengan kecepatan efektif tersebut, prediksinya adalah MCT 11.940,0 s, FCFS 11.871,2 s, dan Min-Min 11.997,7 s, dan selisihnya dengan rata-rata terukur hanya 0,01% sampai 0,25%. Jadi keunggulan FCFS pada makespan real merupakan efek konfigurasi quota CPU, bukan bukti bahwa FCFS lebih baik secara algoritmik.
 
 3. **MCT paling baik pada workload kecil (n=50).** MCT menghasilkan makespan 567,02 s, FCFS 590,71 s, dan Min-Min 649,83 s. Urutan ini sama dengan urutan makespan ideal (569,08 s, 603,91 s, dan 648,15 s). Pada jumlah task kecil, keputusan penempatan tiap task berpengaruh lebih besar terhadap hasil akhir.
 
