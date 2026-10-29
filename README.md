@@ -170,6 +170,7 @@ Selisih 0,7-1,3% konsisten di ketiganya, sejalan dengan jeda minimum antar-event
     ├── Dataset-Sintetik/                # synthetic_seed1..3.csv
     ├── results.csv / summary.csv        # hasil sweep
     ├── chart_*.png                      # 5 grafik
+    ├── real_world/                      # dispatcher.py, worker.py, manifest kind/pod, hasil + grafik real-world
     └── README.md                        # dokumentasi lengkap revisi (cara menjalankan, hasil, analisis)
 ```
 
@@ -178,43 +179,44 @@ Selisih 0,7-1,3% konsisten di ketiganya, sejalan dengan jeda minimum antar-event
 - **Total cost (F2)** belum dihitung untuk ketiga algoritma; baru makespan (F1), imbalance (F3), utilization, dan throughput yang terukur lengkap.
 - Konfigurasi homogen (4 VM identik) belum dijalankan.
 - Waktu komputasi algoritma belum diukur secara eksplisit.
-- Ujicoba real-world penuh (1.000 task, beberapa putaran) belum selesai; baru uji awal 50 task (lihat [Real World Scenario](#real-world-scenario)).
+- Ujicoba real-world dijalankan pada satu laptop (Docker Desktop + kind) dengan host dan VM logical; belum diuji pada dua perangkat fisik atau cloud sungguhan (lihat [Real World Scenario](#real-world-scenario)).
 - Penempatan VM→host tidak memengaruhi makespan karena kapasitas host jauh melampaui kebutuhan 4 VM dan mapping task→VM dihitung di layer aplikasi, bukan oleh CloudSim.
 
 
 ## **Real World Scenario**
 
-> **Status:** uji awal 50 task sudah dijalankan; run penuh 1.000 task belum (nilai `TBD` di bawah). Skrip `dispatcher.py`, `worker.py`, dan `summarize.py` tidak termasuk di repo ini.
+> **Status:** run penuh 1.000 task sudah selesai (rata-rata 4 run per algoritma, 29 Oktober 2026). Kode, panduan setup lengkap, grafik, dan data mentah ada di [`SOKA_v2/real_world/`](SOKA_v2/real_world/README.md).
 
-Setelah melakukan simulasi melalui CloudSim, kita dapat melakuakn pengujian secara real world menggunakan Docker. Untuk arsitekturnya sebagai berikut.
+Setelah melakukan simulasi melalui CloudSim, pengujian dilanjutkan secara real world pada cluster Kubernetes lokal (kind di atas Docker Desktop). Arsitekturnya sebagai berikut.
 
 ```text
-               dispatcher.py
-       (assign: MCT / FCFS / Min-Min)
-                      │
-     ┌──────────┬─────┴────┬──────────┐
-     ▼          ▼          ▼          ▼
-┌─────────┐┌─────────┐┌─────────┐┌─────────┐
-│   VM-0  ││   VM-1  ││   VM-2  ││   VM-3  │
-│0,133 CPU││0,333 CPU││0,667 CPU││1,000 CPU│
-│worker.py││worker.py││worker.py││worker.py│
-└─────────┘└─────────┘└─────────┘└─────────┘
-     │          │          │          │
-     └──────────┴─────┬────┴──────────┘
-                      ▼
-        start/end tiap task → metrik
+                  dispatcher.py
+          (assign: MCT / FCFS / Min-Min)
+                        │  kubectl exec
+        ┌───────────────┴────────────────┐
+        ▼                                ▼
+┌─────────────────┐              ┌─────────────────┐
+│ Host 1 (worker) │              │ Host 2 (worker) │
+│ ┌─────┐ ┌─────┐ │              │ ┌─────┐ ┌─────┐ │
+│ │VM-0 │ │VM-3 │ │              │ │VM-1 │ │VM-2 │ │
+│ │133m │ │1000m│ │              │ │333m │ │667m │ │
+│ └─────┘ └─────┘ │              │ └─────┘ └─────┘ │
+└─────────────────┘              └─────────────────┘
+   (1 datacenter = 1 cluster kind, worker.py jalan di tiap pod)
+                        ▼
+          start/end tiap task → metrik
 ```
 
-- **VM** = container Docker `python:3.12-slim` dengan batas CPU (`--cpus`) yang rasionya sama dengan MIPS di simulasi.
-- **Dispatcher** (`dispatcher.py`) menghitung penjadwalan, mengirim daftar task ke tiap worker lewat `stdin`, lalu mengumpulkan waktu mulai dan selesai tiap task.
-- **Worker** (`worker.py`) mengeksekusi task dengan menghabiskan CPU time. Karena CPU container dibatasi, container yang lebih lambat otomatis membutuhkan waktu lebih lama (CFS throttling).
+- **Datacenter** = 1 cluster kind (`soka`). **Host** = 2 worker node. **VM** = 4 pod `python:3.12-slim`, 2 pod per host.
+- **Dispatcher** (`dispatcher.py`) menghitung penjadwalan, mengirim daftar task ke tiap worker lewat `kubectl exec` (stdin), lalu mengumpulkan waktu mulai dan selesai tiap task.
+- **Worker** (`worker.py`) mengeksekusi task dengan menghabiskan CPU time. Karena CPU limit pod dibatasi (cgroup), pod yang lebih kecil otomatis membutuhkan waktu lebih lama (CFS throttling).
 
-| VM | MIPS | `--cpus` |
-|---|---|---|
-| VM-0 | 1.000 | 0,133333 |
-| VM-1 | 2.500 | 0,333333 |
-| VM-2 | 5.000 | 0,666667 |
-| VM-3 | 7.500 | 1,000000 |
+| VM | Host | MIPS | CPU limit pod |
+|---|---|---|---|
+| VM-0 | host-1 | 1.000 | 133m |
+| VM-1 | host-2 | 2.500 | 333m |
+| VM-2 | host-2 | 5.000 | 667m |
+| VM-3 | host-1 | 7.500 | 1000m |
 
 ### Model task
 
@@ -222,7 +224,7 @@ Satu task dengan panjang $L_i$ (MI) membutuhkan CPU time pada satu core penuh:
 
 $$\text{CPU time} = \frac{L_i}{7500 \cdot S}$$
 
-dengan $S = 50$ sebagai faktor percepatan waktu, agar satu run penuh cukup sekitar 2,5 menit dan bukan 7.690 detik. Seluruh waktu hasil pengukuran dikalikan kembali dengan $S$, sehingga bisa dibandingkan langsung dengan CloudSim (satuan detik simulasi).
+dengan $S = 50$ sebagai faktor percepatan waktu, agar satu run 1.000 task cukup sekitar 4 menit dan bukan sekitar 12.000 detik. Seluruh waktu hasil pengukuran dikalikan kembali dengan $S$, sehingga bisa dibandingkan dengan makespan ideal model yang sama (satuan detik simulasi).
 
 ### Algoritma
 
@@ -241,86 +243,87 @@ $$CT(T_i, V_j) = RT(V_j) + ET(T_i, V_j)$$
 ### Metrik
 
 - **Makespan** = $\max_j F_j$, dengan $F_j$ waktu selesai VM $V_j$.
-- **Degree of Imbalance** $DI = \dfrac{\max_j F_j - \min_j F_j}{\overline{F}}$
+- **Degree of Imbalance** $DI = \dfrac{\max_j T_j - \min_j T_j}{\overline{T}}$, dengan $T_j$ total waktu sibuk VM $V_j$ (sama dengan `dispatcher.py`).
 - **Utilization** = total waktu sibuk seluruh VM / ($m \cdot$ makespan)
 - **Throughput** = jumlah task / makespan
 
 ### Cara menjalankan
 
-Prasyarat: Docker Desktop (alokasikan CPU ≥ 4 core), Python 3, dan `pip install pandas`.
-
-```bash
-docker pull python:3.12-slim
-python dispatcher.py mct 50      # uji kecil: algoritma + jumlah task
-```
-
-Run penuh (3 putaran, urutan algoritma diselang-seling):
+Prasyarat: Docker Desktop (alokasikan CPU ≥ 4 core), `kubectl`, `kind`, dan Python 3. Setup cluster langkah demi langkah ada di [`SOKA_v2/real_world/README.md`](SOKA_v2/real_world/README.md). Jika cluster sudah siap:
 
 ```powershell
-1..3 | % { foreach($a in 'mct','fcfs','minmin'){ python dispatcher.py $a } }
-python summarize.py
+cd SOKA_v2/real_world
+kubectl get pods -l app=vm -o wide
+python dispatcher.py mct --n 50        # uji kecil
+python dispatcher.py mct --n 1000      # run penuh (sekitar 4 menit)
+python dispatcher.py mct --n 1000 --dry   # hanya hitung jadwal, tanpa cluster
+python plot_real_results.py            # ringkasan + grafik
 ```
 
-Setiap run menulis `real_<algoritma>_<timestamp>.csv` (detail per task) dan menambah satu baris ke `results.csv`.
+Setiap run menulis `real_<algoritma>_<timestamp>.csv` (detail per task: `task,vm,start,end`).
 
 ### Validasi bahwa CPU limit bekerja
 
-Saat run berjalan, di terminal lain:
-
 ```bash
-docker stats --no-stream --format "table {{.ID}}\t{{.CPUPerc}}"
-docker inspect --format "{{.HostConfig.NanoCpus}}" <container_id>
+kubectl get nodes -L host -o wide
+kubectl get pods -l app=vm -o wide
+for p in vm-0 vm-1 vm-2 vm-3; do printf "%s: " "$p"; kubectl exec "$p" -- cat /sys/fs/cgroup/cpu.max; done
 ```
 
-CPU% keempat container harus mendekati 13% / 33% / 67% / 100%, dan `NanoCpus` bernilai 133333000 / 333333000 / 666667000 / 1000000000.
+`cpu.max` keempat pod berisi 14000 / 34000 / 67000 / 100000 per periode 100000 µs. Kubernetes membulatkan kuota ke atas, sehingga limit efektif 140m / 340m / 670m / 1000m.
 
 ### Hasil
 
-**Uji awal, 50 task, 1 run per algoritma**
-<img width="804" height="182" alt="image" src="https://github.com/user-attachments/assets/fc39267d-da59-4a24-8386-80d2da09beb2" />
+Semua hasil di bawah memakai `synthetic_seed1.csv`, run 29 Oktober 2026 (Docker 4 CPU). Run awal 26 Oktober disimpan di `arsip/26okt/` dan tidak dipakai (hasilnya terganggu kondisi host).
 
-| Algoritma | Makespan real | Ideal (hitungan) | DI | Utilization |
-|---|---|---|---|---|
-| MCT | 377,48 | 377,47 | 0,2912 | 0,8427 |
-| FCFS | 415,73 | 418,80 | 0,3703 | 0,7942 |
-| Min-Min | 426,32 | 427,10 | 0,8207 | 0,6936 |
+**Uji kecil, 50 task, 1 run per algoritma**
 
-**Run penuh, 1.000 task, rata-rata ± std dari TBD run**
+| Algoritma | Makespan real (s) | Ideal (s) | DI | Utilization |
+|---|---:|---:|---:|---:|
+| MCT | 567,02 | 569,08 | 0,0858 | 0,9695 |
+| FCFS | 590,71 | 603,91 | 0,0918 | 0,9463 |
+| Min-Min | 649,83 | 648,15 | 1,3241 | 0,6631 |
 
-<img width="799" height="187" alt="image" src="https://github.com/user-attachments/assets/255876c2-0f96-4b08-b896-5e85db71b557" />
+**Run penuh, 1.000 task, rata-rata dari 4 run**
 
-| Algoritma | Makespan real (mean ± std) | Ideal | CloudSim | DI | Utilization |
-|---|---|---|---|---|---|
-| MCT | TBD | 7.634,80 | 7.690 | TBD | TBD |
-| FCFS | TBD | 7.628,47 | 7.724 | TBD | TBD |
-| Min-Min | TBD | 7.686,67 | 7.781 | TBD | TBD |
-
-> Isi `TBD` dari keluaran `summarize.py`.
+| Algoritma | Makespan real (s) | Rentang (s) | Ideal (s) | Overhead | DI | Utilization |
+|---|---:|---|---:|---:|---:|---:|
+| MCT | 11.967,47 | 11.963,75 – 11.972,65 | 11.939,99 | +0,23% | 0,0654 | 0,9731 |
+| FCFS | 11.900,35 | 11.889,13 – 11.908,68 | 12.039,02 | -1,15% | 0,0447 | 0,9844 |
+| Min-Min | 11.996,96 | 11.993,75 – 12.002,84 | 12.051,62 | -0,45% | 0,1132 | 0,9617 |
 
 ### Analisis
 
-Isi setelah run penuh. Poin yang perlu dijawab:
+1. **Makespan real hampir setara pada n=1.000.** Selisih FCFS dan MCT sekitar 0,56%, MCT dan Min-Min sekitar 0,25%, sedangkan variasi antar-run hanya 0,07% sampai 0,16%.
+2. **Urutan ideal berbeda dari urutan real.** MCT terbaik pada jadwal ideal, tetapi FCFS terendah pada eksekusi nyata karena pembulatan kuota CPU Kubernetes (vm-1 pada FCFS mendapat tambahan kecepatan, vm-3 pada MCT tidak). Dengan kecepatan efektif, prediksi ideal berbeda dari rata-rata terukur hanya 0,01% sampai 0,25%.
+3. **MCT paling baik pada n=50**, urutannya sama dengan urutan ideal.
+4. **FCFS paling merata, Min-Min paling timpang** (menumpuk task pada VM tercepat, DI 0,1132 pada n=1.000 dan 1,3241 pada n=50).
 
-1. Apakah urutan algoritma pada eksekusi real sama dengan di CloudSim?
-2. Seberapa besar selisih makespan real terhadap nilai ideal dan terhadap CloudSim (dalam persen)?
-3. Apakah selisih antar-algoritma lebih besar dari standar deviasi antar-run? Jika tidak, perbedaannya tidak signifikan secara statistik dan itu perlu ditulis apa adanya.
+Analisis lengkap ada di [`SOKA_v2/real_world/README.md`](SOKA_v2/real_world/README.md).
 
 ### Keterbatasan
 
 - Penjadwalan masih **offline**: semua task diassign di awal dan dianggap tiba di $t = 0$.
-- "VM" adalah container pada **satu mesin fisik** yang berbagi kernel, sehingga ada noise antar-container yang tidak ada pada VM terpisah.
+- Datacenter, host, dan VM bersifat **logical** (cluster kind, node, pod) pada **satu laptop fisik** yang berbagi kernel, sehingga ada noise antar-pod yang tidak ada pada VM atau server terpisah. Hasil sensitif terhadap kondisi host (terlihat pada run 26 Oktober).
 - Beban hanya **CPU-bound**. RAM, I/O, dan jaringan tidak dimodelkan, begitu pula kolom `pesramMB` dan `priority` pada dataset.
 - Waktu dipercepat dengan faktor $S = 50$. Overhead tetap (baca `stdin`, pencatatan waktu) ikut terkalikan $S$ saat dikonversi ke detik simulasi.
 - Estimasi waktu eksekusi dianggap akurat ($ET = L / \mathrm{MIPS}$), tanpa variasi runtime.
+- Estimasi biaya cloud adalah CPU-equivalent estimate, bukan tagihan aktual.
 
 ### Struktur berkas
 
 ```
-worker.py        # dijalankan di dalam tiap container
-dispatcher.py    # penjadwalan + orkestrasi container + perhitungan metrik
-summarize.py     # ringkasan mean ± std dari results.csv
-results.csv      # satu baris per run
-real_*.csv       # detail per task (task, vm, start, end)
+SOKA_v2/real_world/
+├── worker.py                  # dijalankan di dalam tiap pod
+├── dispatcher.py              # penjadwalan + orkestrasi pod + perhitungan metrik
+├── kind-config.yaml           # cluster kind: 1 control-plane + 2 worker (host-1, host-2)
+├── vms.yaml                   # 4 pod VM dengan CPU limit
+├── plot_real_results.py       # ringkasan + grafik dari real_*.csv
+├── test_*.py                  # unit test
+├── real_summary.csv           # ringkasan per run
+├── real_*.csv                 # detail per task (task, vm, start, end)
+├── real_*.png                 # grafik
+└── arsip/                     # run awal 26 Okt dan ulangan n=1.000
 ```
 
 ## **Referensi**
