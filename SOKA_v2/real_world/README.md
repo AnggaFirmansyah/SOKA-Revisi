@@ -67,7 +67,7 @@ python dispatcher.py mct --n 50
 
 - Windows PowerShell
 - Docker Desktop dalam keadaan berjalan
-- Docker Desktop menyediakan minimal 4 CPU. Pengujian dilakukan pada Docker dengan 12 CPU.
+- Docker Desktop menyediakan minimal 4 CPU. Menurut catatan awal, run 26 Oktober dilakukan pada Docker dengan 12 CPU. Run 29 Oktober, yang menjadi hasil utama, dilakukan pada Docker dengan 4 CPU.
 - Python 3
 - `kubectl`
 - `kind`
@@ -417,7 +417,7 @@ Variasi antar-run sangat kecil, yaitu 0,07% sampai 0,16% dari makespan. Urutan m
 
 ### Perbandingan dengan run awal 26 Oktober 2026
 
-Run awal pada 26 Oktober 2026 disimpan di `arsip/26okt/` dan **tidak dipakai** untuk kesimpulan. Pada run itu, makespan real untuk n=1.000 sekitar 9% sampai 10% lebih lambat daripada ideal, dan waktu busy keempat VM naik seragam sekitar 9% dibanding prediksi. Pola seragam seperti ini khas persaingan CPU di level host, dugaan yang belum diverifikasi pada mesin tersebut, misalnya jumlah core yang dialokasikan ke Docker atau WSL2 lebih sedikit dari total limit pod (sekitar 2,13 core), atau ada aplikasi lain yang berjalan. Pada run 26 Oktober n=50 juga tidak konsisten antar algoritma (overhead MCT 26,41%, FCFS 25,73%, Min-Min -0,13%). Kodenya sama, sehingga perbedaan hasil menunjukkan bahwa pengukuran real-world sensitif terhadap kondisi host. Karena itu hasil 29 Oktober, yang diulang beberapa kali dan stabil, dipakai sebagai dasar.
+Run awal pada 26 Oktober 2026 disimpan di `arsip/26okt/` dan **tidak dipakai** untuk kesimpulan. Pada run itu, makespan real untuk n=1.000 sekitar 9% sampai 10% lebih lambat daripada ideal, dan waktu busy keempat VM naik seragam sekitar 9% dibanding prediksi. Pola seragam seperti ini khas persaingan CPU di level host. Jumlah CPU yang dialokasikan ke Docker bukan penyebabnya, karena run 26 Oktober memakai 12 CPU sedangkan run 29 Oktober cukup dengan 4 CPU. Dugaan yang tersisa adalah beban aplikasi lain atau mode daya laptop saat run, dan dugaan ini belum diverifikasi. Pada run 26 Oktober n=50 juga tidak konsisten antar algoritma (overhead MCT 26,41%, FCFS 25,73%, Min-Min -0,13%). Kodenya sama, sehingga perbedaan hasil menunjukkan bahwa pengukuran real-world sensitif terhadap kondisi host. Karena itu hasil 29 Oktober, yang diulang beberapa kali dan stabil, dipakai sebagai dasar.
 
 ### Kesimpulan
 
